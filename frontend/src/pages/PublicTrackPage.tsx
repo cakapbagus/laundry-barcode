@@ -266,8 +266,7 @@ export default function PublicTrackPage() {
 
             {/* Info */}
             <div className="text-center text-xs text-gray-400 pb-2 mobile-landscape:py-2">
-              Dibuat {new Date(order.createdAt).toLocaleString('id-ID')} •{' '}
-              <a href="/login" className="text-indigo-500 hover:underline">Login Staff</a>
+              Dibuat {new Date(order.createdAt).toLocaleString('id-ID')}
             </div>
           </div>
         )}
@@ -278,6 +277,11 @@ export default function PublicTrackPage() {
             <p className="text-xs sm:text-sm text-gray-500">Masukkan kode order untuk melacak status cucian Anda</p>
           </div>
         )}
+
+        <div className="text-center text-xs text-gray-400 pb-2 mobile-landscape:py-2">
+          <a href="/login" className="text-indigo-500 hover:underline">Login Staff</a>
+        </div>
+
       </div>
     </div>
   );

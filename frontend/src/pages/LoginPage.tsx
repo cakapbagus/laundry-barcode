@@ -38,6 +38,17 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-blue-50 flex items-center justify-center p-4
                     mobile-landscape:p-3 mobile-landscape:items-stretch">
 
+      {/* Floating button → Track */}
+      <button
+        onClick={() => navigate('/track')}
+        className="fixed top-6 left-6 flex items-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-full shadow-lg transition-colors z-50"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+        </svg>
+        <span className="hidden sm:inline">Lacak Cucian</span>
+      </button>
+
       {/* Portrait: single column | mobile-landscape: 2 columns */}
       <div className="w-full max-w-md mobile-landscape:max-w-2xl mobile-landscape:flex mobile-landscape:gap-4 mobile-landscape:items-center">
 
