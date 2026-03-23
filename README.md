@@ -6,6 +6,7 @@ Aplikasi web full-stack untuk mengelola operasional laundry di pesantren menggun
 ![Node.js](https://img.shields.io/badge/Node.js-24-green)
 ![React](https://img.shields.io/badge/React-18-61dafb)
 ![PWA Ready](https://img.shields.io/badge/PWA-Ready-purple)
+[![🚀 Install](https://img.shields.io/badge/🚀_Install-Sekarang-4f46e5?style=for-the-badge)](#instalasi--menjalankan)
 
 ---
 
@@ -87,31 +88,59 @@ laundry-barcode/
 
 ## Akun Default (Seed)
 
-| Nama | Password | Role | Redirect Default |
-|------|----------|------|-----------------|
-| Admin | `admin123` | MANAGER | `/dashboard` |
-| Siti | `siti123` | KASIR | `/intake` |
-| Joko | `joko123` | OPERATOR | `/scanner` |
-| Budi | `budi123` | OPERATOR | `/scanner` |
+Production seed hanya membuat satu akun MANAGER. Nama dan password ditanyakan interaktif saat `prod-setup.sh` berjalan:
+- Nama dikosongkan → `Admin` / `admin123`
+- Nama diisi → password 6 karakter acak, ditampilkan di akhir script
 
-> **Ganti semua password default sebelum deploy ke production.**
+Akun KASIR dan OPERATOR dibuat manual oleh MANAGER setelah login pertama via menu **Manajemen → Pengguna**.
+
+**Development (seed lokal):**
+
+| Nama | Password | Role |
+|------|----------|------|
+| Admin | `admin123` | MANAGER |
 
 ---
 
 ## Instalasi & Menjalankan
 
+### Production
+
+#### Cara 1 — Langsung via curl
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cakapbagus/laundry-barcode/main/scripts/prod-setup.sh | sudo bash
+```
+
+Script otomatis clone repo, install semua dependensi, setup database, build, dan konfigurasi Nginx + PM2 + firewall.
+
+#### Cara 2 — Download script lalu jalankan
+
+```bash
+curl -O https://raw.githubusercontent.com/cakapbagus/laundry-barcode/main/scripts/prod-setup.sh
+sudo bash prod-setup.sh
+```
+
+#### Cara 3 — Clone repo dulu lalu jalankan
+
+```bash
+git clone https://github.com/cakapbagus/laundry-barcode.git
+cd laundry-barcode
+sudo bash scripts/prod-setup.sh
+```
+
+---
+
+### Development (Lokal)
+
 ### Prasyarat
 - Node.js >= 20
 - npm >= 9
 
-### Development (Lokal)
-
 ```bash
-# Clone repo
-git clone <repo-url>
+git clone https://github.com/cakapbagus/laundry-barcode.git
 cd laundry-barcode
 
-# Jalankan script otomatis
 chmod +x scripts/dev-setup.sh
 ./scripts/dev-setup.sh
 ```
@@ -132,15 +161,6 @@ cd frontend
 npm install
 npm run dev          # http://localhost:5173
 ```
-
-### Production (VPS Ubuntu)
-
-```bash
-chmod +x scripts/prod-setup.sh
-sudo ./scripts/prod-setup.sh
-```
-
-Script otomatis menginstall Node.js, PM2, Nginx, UFW firewall, dan mengkonfigurasi reverse proxy dengan WebSocket support + static asset caching.
 
 ---
 

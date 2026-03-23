@@ -23,6 +23,7 @@ set -e
 APP_DIR="${APP_DIR:-/opt/laundry-barcode}"
 APP_DOMAIN="${APP_DOMAIN:-}"
 APP_USER="${SUDO_USER:-$(logname 2>/dev/null || whoami)}"
+REPO_URL="${REPO_URL:-https://github.com/cakapbagus/laundry-barcode}"
 BACKEND_PORT=3001
 NODE_VERSION="24"
 
@@ -89,18 +90,37 @@ log "Menjalankan sebagai user: $APP_USER"
 # =============================================================================
 section "2. Salin source code"
 # =============================================================================
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$(dirname "$SCRIPT_DIR")"
 
-if [ "$SRC_DIR" = "$APP_DIR" ]; then
-  warn "Source sudah di $APP_DIR, lewati salin"
+# Deteksi apakah script dijalankan dari dalam clone repo
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  CANDIDATE_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 else
+  CANDIDATE_SRC=""
+fi
+
+if [ -f "$CANDIDATE_SRC/backend/package.json" ]; then
+  SRC_DIR="$CANDIDATE_SRC"
+  log "Source ditemukan di $SRC_DIR"
+else
+  # curl | bash  ATAU  script standalone di folder acak → clone repo
+  TMP_SRC=$(mktemp -d)
+  log "Clone repository dari $REPO_URL ke $TMP_SRC..."
+  git clone --depth=1 "$REPO_URL" "$TMP_SRC"
+  SRC_DIR="$TMP_SRC"
+fi
+
+if [ "$SRC_DIR" != "$APP_DIR" ]; then
   log "Salin source ke $APP_DIR..."
   rsync -a --exclude='.git' --exclude='node_modules' --exclude='*.db' \
     "$SRC_DIR/" "$APP_DIR/"
 fi
 
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+
+# Bersihkan clone sementara jika ada
+if [[ "$SRC_DIR" == /tmp/* ]]; then
+  rm -rf "$SRC_DIR"
+fi
 
 # =============================================================================
 section "3. Setup backend"
