@@ -130,7 +130,7 @@ export default function LoginPage() {
               Untuk demo, silakan hubungi kami →
             </span>
             <a
-              href={`https://wa.me/6281779105229?text=${encodeURIComponent('Halo, saya tertarik dengan webapp Laundry Pesantren, saya ingin mencoba DEMO apakah bisa?')}`}
+              href={`https://wa.me/6282170270241?text=${encodeURIComponent('Halo, saya tertarik dengan webapp Laundry Pesantren, saya ingin mencoba DEMO apakah bisa?')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold rounded-lg transition-colors"

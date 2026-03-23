@@ -52,11 +52,11 @@ echo ""
 
 # --- Tanya domain jika belum diset via env ---
 if [ -z "$APP_DOMAIN" ]; then
-  read -rp "Domain (kosongkan untuk pakai IP server): " APP_DOMAIN
+  read -rp "Domain (kosongkan untuk pakai IP server): " APP_DOMAIN </dev/tty
 fi
 
 # --- Tanya nama manager ---
-read -rp "Nama login Manager (Enter untuk pakai 'Admin'): " MANAGER_NAME
+read -rp "Nama login Manager (Enter untuk pakai 'Admin'): " MANAGER_NAME </dev/tty
 if [ -z "$MANAGER_NAME" ]; then
   MANAGER_NAME="Admin"
   MANAGER_PASSWORD="admin123"
