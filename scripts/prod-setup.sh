@@ -25,7 +25,7 @@ APP_DOMAIN="${APP_DOMAIN:-}"
 APP_USER="${SUDO_USER:-$(logname 2>/dev/null || whoami)}"
 REPO_URL="${REPO_URL:-https://github.com/cakapbagus/laundry-barcode}"
 BACKEND_PORT=3001
-NODE_VERSION="24"
+NODE_VERSION="22"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -71,7 +71,7 @@ apt-get update -qq
 apt-get install -y -qq curl git nginx ufw openssl
 
 # --- Install Node.js via NodeSource ---
-if ! command -v node &>/dev/null || [ "$(node -e 'process.stdout.write(process.version.slice(1).split(\".\")[0])')" -lt "$NODE_VERSION" ]; then
+if ! command -v node &>/dev/null || [ "$(node -e 'process.stdout.write(process.version.slice(1).split(".")[0])')" -lt "$NODE_VERSION" ]; then
   log "Install Node.js $NODE_VERSION..."
   curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
   apt-get install -y nodejs
@@ -125,6 +125,11 @@ fi
 # =============================================================================
 section "3. Setup backend"
 # =============================================================================
+# Pastikan cache npm bisa ditulis oleh APP_USER
+export NPM_CONFIG_CACHE="/tmp/.npm-laundry"
+mkdir -p "$NPM_CONFIG_CACHE"
+chown "$APP_USER:$APP_USER" "$NPM_CONFIG_CACHE"
+
 cd "$APP_DIR/backend"
 
 # Buat .env production
@@ -152,13 +157,13 @@ else
   warn ".env sudah ada, dilewati"
 fi
 
-sudo -u "$APP_USER" npm install --omit=dev
-sudo -u "$APP_USER" npx prisma generate
-sudo -u "$APP_USER" npx prisma db push
+sudo -u "$APP_USER" -E npm install
+sudo -u "$APP_USER" -E npx prisma generate
+sudo -u "$APP_USER" -E npx prisma db push
 log "Database production siap"
 
 # Seed hanya jika DB kosong
-USER_COUNT=$(sudo -u "$APP_USER" node -e "
+USER_COUNT=$(sudo -u "$APP_USER" -E node -e "
 const { PrismaClient } = require('@prisma/client');
 const p = new PrismaClient();
 p.user.count().then(n => { process.stdout.write(String(n)); p.\$disconnect(); });
@@ -166,14 +171,15 @@ p.user.count().then(n => { process.stdout.write(String(n)); p.\$disconnect(); })
 
 if [ "$USER_COUNT" = "0" ]; then
   SEED_MANAGER_NAME="$MANAGER_NAME" SEED_MANAGER_PASSWORD="$MANAGER_PASSWORD" \
-    sudo -u "$APP_USER" -E npx tsx prisma/seed.ts
+    sudo -u "$APP_USER" -E npx tsx prisma/seed.ts -y
   log "Data seed ditambahkan"
 else
   warn "Database sudah berisi data, seed dilewati"
 fi
 
 # Build backend (compile TypeScript)
-sudo -u "$APP_USER" npm run build
+sudo -u "$APP_USER" -E npm run build
+sudo -u "$APP_USER" -E npm prune --omit=dev
 log "Backend di-build"
 
 # =============================================================================
@@ -181,8 +187,12 @@ section "4. Setup frontend"
 # =============================================================================
 cd "$APP_DIR/frontend"
 
-sudo -u "$APP_USER" npm install --omit=dev
-sudo -u "$APP_USER" npm run build
+sudo -u "$APP_USER" -E npm install
+sudo -u "$APP_USER" -E npm run build
+sudo -u "$APP_USER" -E npm prune --omit=dev
+# Pastikan Nginx (www-data) bisa baca file statis
+chmod -R 755 "$APP_DIR/frontend/dist"
+chmod o+x "$APP_DIR" "$APP_DIR/frontend"
 log "Frontend di-build → dist/"
 
 # =============================================================================
@@ -195,7 +205,6 @@ module.exports = {
       name: 'laundry-backend',
       script: '$APP_DIR/backend/dist/server.js',
       cwd: '$APP_DIR/backend',
-      user: '$APP_USER',
       env: {
         NODE_ENV: 'production',
       },
@@ -216,7 +225,7 @@ sudo -u "$APP_USER" pm2 start "$APP_DIR/ecosystem.config.js"
 sudo -u "$APP_USER" pm2 save
 
 # Daftarkan PM2 agar auto-start saat reboot
-pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER" | tail -1 | bash
+pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER"
 log "PM2 dikonfigurasi (auto-start saat boot)"
 
 # =============================================================================

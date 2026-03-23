@@ -42,16 +42,15 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
 
     // Get or create customer
     let customer;
-    if (customerId) {
-      customer = await prisma.customer.findUnique({ where: { id: customerId } });
-      if (!customer) {
-        res.status(404).json({ error: 'Santri tidak ditemukan' });
-        return;
-      }
-    } else {
-      customer = await prisma.customer.create({
-        data: { name: customerName },
-      });
+    if (!customerId) {
+      res.status(400).json({ error: 'NIS wajib diisi' });
+      return;
+    }
+
+    customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer) {
+      res.status(404).json({ error: 'Santri tidak ditemukan' });
+      return;
     }
 
     // Generate order code
