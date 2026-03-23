@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  passwordHash    String
+  role            String   // "KASIR" | "OPERATOR" | "MANAGER"
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  createdByUserId String?
+  createdBy       User?    @relation("UserCreatedBy", fields: [createdByUserId], references: [id])
+  createdUsers    User[]   @relation("UserCreatedBy")
+  orders          Order[]
+  stageHistories  StageHistory[]
+  scanLogs        ScanLog[]
+}
+
+model Customer {
+  id         String   @id @default(uuid())
+  name       String
+  customerId String   @unique // Nomor induk santri (NIS) — wajib unik
+  createdAt  DateTime @default(now())
+  orders     Order[]
+}
+
+model Machine {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  category  String   // "WASH" | "DRY" | "IRON"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Order {
+  id                  String    @id @default(uuid())
+  orderCode           String    @unique
+  qrCode              String
+  customerId          String
+  customer            Customer  @relation(fields: [customerId], references: [id])
+  customerName        String
+  weightKg            Float
+  itemDescription     String?
+  notes               String?
+  status              String    @default("INTAKE")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  completedAt         DateTime?
+  estimatedCompletion DateTime
+  createdByUserId     String
+  createdBy           User      @relation(fields: [createdByUserId], references: [id])
+  history             StageHistory[]
+  scanLogs            ScanLog[]
+}
+
+model StageHistory {
+  id         String    @id @default(uuid())
+  orderId    String
+  order      Order     @relation(fields: [orderId], references: [id])
+  fromStage  String?
+  toStage    String
+  machineId  String?
+  operatorId String
+  operator   User      @relation(fields: [operatorId], references: [id])
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+  duration   Int?
+  notes      String?
+}
+
+model ScanLog {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id])
+  operatorId String
+  operator   User     @relation(fields: [operatorId], references: [id])
+  scanType   String   // "INTAKE_START" | "STAGE_TRANSITION" | "PICKED_UP"
+  status     String   // "success" | "duplicate" | "error"
+  errorMsg   String?
+  scannedAt  DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}

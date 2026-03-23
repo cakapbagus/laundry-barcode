@@ -1,0 +1,7 @@
+{
+  "watch": ["src", "prisma"],
+  "ext": "ts,json,prisma",
+  "ignore": ["dist", "node_modules", "*.db"],
+  "exec": "tsx src/server.ts",
+  "delay": "500"
+}
