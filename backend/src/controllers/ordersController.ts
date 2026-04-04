@@ -8,26 +8,24 @@ const prisma = new PrismaClient();
 
 export async function createOrder(req: Request, res: Response): Promise<void> {
   try {
-    const { customerId, customerName, weightKg, itemDescription, notes } = req.body;
+    const { customerId, notes } = req.body;
 
-    if (!customerName || !weightKg) {
-      res.status(400).json({ error: 'Nama santri dan berat wajib diisi' });
+    if (!customerId) {
+      res.status(400).json({ error: 'ID santri wajib diisi' });
       return;
     }
 
-    if (Number(weightKg) <= 0) {
-      res.status(400).json({ error: 'Berat harus lebih dari 0 kg' });
+    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer) {
+      res.status(404).json({ error: 'Santri tidak ditemukan' });
       return;
     }
 
-    // Duplicate prevention: same customerName within 30 min today
+    // Duplicate prevention: same customer within 30 min today
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
     const existing = await prisma.order.findFirst({
       where: {
-        customerName,
+        customerId,
         createdAt: { gte: thirtyMinAgo },
         status: { not: 'PICKED_UP' },
       },
@@ -35,28 +33,13 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
 
     if (existing) {
       res.status(409).json({
-        error: `Order untuk ${customerName} sudah dibuat dalam 30 menit terakhir (${existing.orderCode})`,
+        error: `Order untuk ${customer.nama} (NIS: ${customer.nis}) sudah dibuat dalam 30 menit terakhir (${existing.orderCode})`,
       });
       return;
     }
 
-    // Get or create customer
-    let customer;
-    if (!customerId) {
-      res.status(400).json({ error: 'NIS wajib diisi' });
-      return;
-    }
-
-    customer = await prisma.customer.findUnique({ where: { id: customerId } });
-    if (!customer) {
-      res.status(404).json({ error: 'Santri tidak ditemukan' });
-      return;
-    }
-
-    // Generate order code
     const orderCode = await generateOrderCode(prisma);
 
-    // Get completion days setting
     const completionDaysSetting = await prisma.setting.findUnique({
       where: { key: 'COMPLETION_DAYS' },
     });
@@ -64,7 +47,6 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     const estimatedCompletion = new Date();
     estimatedCompletion.setDate(estimatedCompletion.getDate() + completionDays);
 
-    // Generate QR code (URL to track)
     const trackUrl = `http://localhost:5173/track?order=${orderCode}`;
     const qrCode = await QRCode.toDataURL(trackUrl, { width: 300 });
 
@@ -73,10 +55,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
         orderCode,
         qrCode,
         customerId: customer.id,
-        customerName,
-        weightKg: Number(weightKg),
-        itemDescription: itemDescription || null,
-        notes: notes || null,
+        notes: notes?.trim() || null,
         status: 'INTAKE',
         estimatedCompletion,
         createdByUserId: req.user!.id,
@@ -87,7 +66,6 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
       },
     });
 
-    // Create initial stage history
     await prisma.stageHistory.create({
       data: {
         orderId: order.id,
@@ -97,7 +75,6 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
       },
     });
 
-    // Create scan log
     await prisma.scanLog.create({
       data: {
         orderId: order.id,
@@ -107,7 +84,6 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
       },
     });
 
-    // Broadcast via WebSocket
     try {
       const io = getIo();
       io.emit('order:created', order);
@@ -123,7 +99,7 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
 
 export async function listOrders(req: Request, res: Response): Promise<void> {
   try {
-    const { status, page = '1', limit = '20', search } = req.query;
+    const { status, page = '1', limit = '20', search, kamar, kelas } = req.query;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -131,10 +107,13 @@ export async function listOrders(req: Request, res: Response): Promise<void> {
 
     const where: any = {};
     if (status) where.status = status;
+    if (kamar) where.customer = { ...where.customer, kamar: kamar as string };
+    if (kelas) where.customer = { ...where.customer, kelas: kelas as string };
     if (search) {
       where.OR = [
         { orderCode: { contains: search as string } },
-        { customerName: { contains: search as string } },
+        { customer: { nama: { contains: search as string } } },
+        { customer: { nis: { contains: search as string } } },
       ];
     }
 
@@ -203,6 +182,39 @@ export async function getOrder(req: Request, res: Response): Promise<void> {
     res.json(order);
   } catch (error) {
     console.error('Get order error:', error);
+    res.status(500).json({ error: 'Terjadi kesalahan server' });
+  }
+}
+
+export async function cancelOrder(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) {
+      res.status(404).json({ error: 'Order tidak ditemukan' });
+      return;
+    }
+
+    if (order.status !== 'INTAKE') {
+      res.status(400).json({ error: 'Order hanya bisa dibatalkan saat masih di status Penerimaan' });
+      return;
+    }
+
+    const updated = await prisma.order.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+    });
+
+    try {
+      const io = getIo();
+      io.emit('order:cancelled', updated);
+      io.emit('dashboard:refresh');
+    } catch {}
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Cancel order error:', error);
     res.status(500).json({ error: 'Terjadi kesalahan server' });
   }
 }

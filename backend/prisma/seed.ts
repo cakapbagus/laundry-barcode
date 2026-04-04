@@ -8,8 +8,8 @@ async function main() {
   console.log('Seeding database...');
 
   // Create MANAGER
-  const managerName = process.env.SEED_MANAGER_NAME || 'Admin';
-  const managerPassword = process.env.SEED_MANAGER_PASSWORD || 'admin123';
+  const managerName = process.env.SEED_MANAGER_NAME || 'manager';
+  const managerPassword = process.env.SEED_MANAGER_PASSWORD || 'manager123';
   const managerHash = await bcrypt.hash(managerPassword, 10);
   const admin = await prisma.user.upsert({
     where: { name: managerName },
@@ -48,10 +48,37 @@ async function main() {
   });
 
   await prisma.setting.upsert({
-    where: { key: 'COST_PER_KG' },
+    where: { key: 'STUCK_THRESHOLD_HOURS' },
     update: {},
-    create: { key: 'COST_PER_KG', value: '' },
+    create: { key: 'STUCK_THRESHOLD_HOURS', value: '2' },
   });
+
+  await prisma.setting.upsert({
+    where: { key: 'PRINT_COPIES' },
+    update: {},
+    create: { key: 'PRINT_COPIES', value: '2' },
+  });
+
+  await prisma.setting.upsert({
+    where: { key: 'APP_TITLE' },
+    update: {},
+    create: { key: 'APP_TITLE', value: 'Laundry Pesantren' },
+  });
+
+  await prisma.setting.upsert({
+    where: { key: 'APP_SLOGAN' },
+    update: {},
+    create: { key: 'APP_SLOGAN', value: 'Sistem Pelacak Cucian' },
+  });
+
+  await prisma.setting.upsert({
+    where: { key: 'PAPER_WIDTH' },
+    update: {},
+    create: { key: 'PAPER_WIDTH', value: '80' },
+  });
+
+  // Remove legacy COST_PER_KG if present
+  await prisma.setting.deleteMany({ where: { key: 'COST_PER_KG' } });
 
   console.log('Seeding completed!');
 }

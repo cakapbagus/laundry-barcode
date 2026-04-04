@@ -1,42 +1,45 @@
 import { useState, useEffect, useRef, FormEvent, useCallback } from 'react';
 import jsQR from 'jsqr';
 import { useAuthStore } from '../stores/authStore';
+import { useAppConfigStore } from '../stores/appConfigStore';
 import apiClient from '../api/client';
 import Navbar from '../components/Navbar';
 
 interface Customer {
   id: string;
-  name: string;
-  customerId?: string;
+  nis: string;
+  nama: string;
+  kamar: string;
+  kelas: string;
 }
 
 interface OrderResult {
   id: string;
   orderCode: string;
   qrCode: string;
-  customerName: string;
-  weightKg: number;
+  customer: Customer;
   estimatedCompletion: string;
   status: string;
 }
 
 interface NewCustomerModal {
-  name: string;
-  customerId: string;
+  nis: string;
+  nama: string;
+  kamar: string;
+  kelas: string;
 }
 
 type ScannerState = 'idle' | 'scanning' | 'found' | 'error';
 
 export default function IntakePage() {
-  const user = useAuthStore((s) => s.user);
+  useAuthStore((s) => s.user);
+  const { title: appTitle, slogan: appSlogan, paperWidth } = useAppConfigStore();
 
   // Form state
   const [customerQuery, setCustomerQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [weightKg, setWeightKg] = useState('');
-  const [itemDescription, setItemDescription] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -44,8 +47,11 @@ export default function IntakePage() {
 
   // New customer modal
   const [showNewCustomer, setShowNewCustomer] = useState(false);
-  const [newCustomer, setNewCustomer] = useState<NewCustomerModal>({ name: '', customerId: '' });
+  const [newCustomer, setNewCustomer] = useState<NewCustomerModal>({ nis: '', nama: '', kamar: '', kelas: '' });
   const [savingCustomer, setSavingCustomer] = useState(false);
+
+  // Print copies setting
+  const [printCopies, setPrintCopies] = useState(2);
 
   // Kartu santri scanner
   const [showCardScanner, setShowCardScanner] = useState(false);
@@ -58,6 +64,7 @@ export default function IntakePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Search customers
   useEffect(() => {
@@ -87,6 +94,14 @@ export default function IntakePage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  // Load PRINT_COPIES setting
+  useEffect(() => {
+    apiClient.get('/settings').then((res) => {
+      const v = parseInt(res.data.PRINT_COPIES, 10);
+      if (!isNaN(v) && v >= 1) setPrintCopies(v);
+    }).catch(() => {});
+  }, []);
+
   // Cleanup camera on unmount
   useEffect(() => {
     return () => stopCamera();
@@ -94,7 +109,7 @@ export default function IntakePage() {
 
   function selectCustomer(c: Customer) {
     setSelectedCustomer(c);
-    setCustomerQuery(c.name);
+    setCustomerQuery(c.nama);
     setShowDropdown(false);
   }
 
@@ -217,21 +232,20 @@ export default function IntakePage() {
 
       // Cari match exact NIS atau nama
       const exact =
-        results.find((c) => c.customerId === parsedNis) ||
-        results.find((c) => c.name.toLowerCase() === parsedName.toLowerCase()) ||
+        results.find((c) => c.nis === parsedNis) ||
+        results.find((c) => c.nama.toLowerCase() === parsedName.toLowerCase()) ||
         (results.length === 1 ? results[0] : null);
 
       if (exact) {
         selectCustomer(exact);
         setScannerState('found');
-        setScannerMsg(`✅ Santri ditemukan: ${exact.name}${exact.customerId ? ` (NIS: ${exact.customerId})` : ''}`);
+        setScannerMsg(`✅ Santri ditemukan: ${exact.nama} (NIS: ${exact.nis})`);
         setTimeout(() => closeCardScanner(), 1500);
       } else {
         // Tidak ditemukan — buka modal santri baru dengan data pre-filled
         setScannerState('error');
         setScannerMsg('Santri belum terdaftar. Daftarkan sebagai santri baru?');
-        // Pre-fill modal
-        setNewCustomer({ name: parsedName, customerId: parsedNis });
+        setNewCustomer({ nis: parsedNis, nama: parsedName, kamar: '', kelas: '' });
       }
     } catch {
       setScannerState('error');
@@ -255,19 +269,59 @@ export default function IntakePage() {
     }
   }
 
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    setScannerState('scanning');
+    setScannerMsg('Memproses gambar...');
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const offscreen = document.createElement('canvas');
+      offscreen.width = img.width;
+      offscreen.height = img.height;
+      const ctx = offscreen.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, offscreen.width, offscreen.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'attemptBoth',
+      });
+      if (code?.data) {
+        handleCardQrResult(code.data);
+      } else {
+        setScannerState('error');
+        setScannerMsg('QR code tidak terdeteksi dalam gambar. Coba foto lain atau isi nama manual.');
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      setScannerState('error');
+      setScannerMsg('Gagal membaca gambar. Coba lagi atau isi nama manual.');
+    };
+    img.src = url;
+  }
+
+
   // ─── New Customer ───────────────────────────────────────────────────────────
 
   async function handleSaveNewCustomer() {
-    if (!newCustomer.name.trim() || !newCustomer.customerId.trim()) return;
+    if (!newCustomer.nis.trim() || !newCustomer.nama.trim() || !newCustomer.kamar.trim() || !newCustomer.kelas.trim()) return;
     setSavingCustomer(true);
     try {
       const res = await apiClient.post('/customer', {
-        name: newCustomer.name.trim(),
-        customerId: newCustomer.customerId.trim(),
+        nis: newCustomer.nis.trim(),
+        nama: newCustomer.nama.trim(),
+        kamar: newCustomer.kamar.trim(),
+        kelas: newCustomer.kelas.trim(),
       });
       selectCustomer(res.data);
       setShowNewCustomer(false);
-      setNewCustomer({ name: '', customerId: '' });
+      setNewCustomer({ nis: '', nama: '', kamar: '', kelas: '' });
     } catch (err: any) {
       alert(err.response?.data?.error || 'Gagal mendaftarkan santri');
     } finally {
@@ -281,30 +335,20 @@ export default function IntakePage() {
     e.preventDefault();
     setError('');
 
-    const customerName = selectedCustomer?.name || customerQuery.trim();
-    if (!customerName) {
-      setError('Nama santri wajib diisi');
-      return;
-    }
-    if (!weightKg || Number(weightKg) <= 0) {
-      setError('Berat cucian harus lebih dari 0 kg');
+    if (!selectedCustomer) {
+      setError('Pilih santri terlebih dahulu');
       return;
     }
 
     setLoading(true);
     try {
       const res = await apiClient.post('/orders', {
-        customerId: selectedCustomer?.id,
-        customerName,
-        weightKg: Number(weightKg),
-        itemDescription: itemDescription.trim() || undefined,
+        customerId: selectedCustomer.id,
         notes: notes.trim() || undefined,
       });
       setOrderResult(res.data);
       setCustomerQuery('');
       setSelectedCustomer(null);
-      setWeightKg('');
-      setItemDescription('');
       setNotes('');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Gagal membuat order');
@@ -323,54 +367,18 @@ export default function IntakePage() {
       day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
     const trackUrl = `${window.location.origin}/track`;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html lang="id">
-      <head>
-        <meta charset="UTF-8">
-        <title>Nota Laundry - ${orderResult.orderCode}</title>
-        <style>
-          /* Auto-fit thermal 58mm & 80mm: isi penuh lebar kertas */
-          @page { size: auto; margin: 2mm 3mm; }
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body {
-            font-family: 'Courier New', monospace;
-            width: 100%;
-            font-size: 11px;
-            color: #000;
-          }
-          .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
-          .header h1 { font-size: 1.3em; font-weight: bold; letter-spacing: 1px; }
-          .header p { font-size: 0.9em; }
-          .order-code {
-            text-align: center; font-size: 1.6em; font-weight: bold;
-            letter-spacing: 2px; margin: 6px 0; padding: 5px 4px;
-            border: 2px solid #000;
-          }
-          .row { display: flex; justify-content: space-between; margin: 3px 0; font-size: 1em; gap: 4px; }
-          .label { color: #444; white-space: nowrap; }
-          .value { font-weight: bold; text-align: right; word-break: break-all; }
-          .divider { border-top: 1px dashed #000; margin: 6px 0; }
-          .qr { text-align: center; margin: 8px 0; }
-          .qr img { width: 55%; max-width: 110px; height: auto; }
-          .qr-label { font-size: 0.85em; margin-bottom: 4px; }
-          .track-url {
-            text-align: center; font-size: 0.75em; word-break: break-all;
-            margin-top: 4px; color: #333;
-          }
-          .footer { text-align: center; font-size: 0.8em; border-top: 2px dashed #000; padding-top: 6px; margin-top: 6px; }
-        </style>
-      </head>
-      <body>
+
+    const notaHtml = `
+      <div class="copy">
         <div class="header">
-          <h1>LAUNDRY PESANTREN</h1>
-          <p>Sistem Pelacak Cucian</p>
+          <h1>${appTitle.toUpperCase()}</h1>
+          <p>${appSlogan}</p>
         </div>
         <div class="order-code">${orderResult.orderCode}</div>
-        <div class="row"><span class="label">Nama Santri</span><span class="value">${orderResult.customerName}</span></div>
-        <div class="row"><span class="label">Berat</span><span class="value">${orderResult.weightKg} kg</span></div>
+        <div class="row"><span class="label">Nama Santri</span><span class="value">${orderResult.customer.nama}</span></div>
+        <div class="row"><span class="label">NIS</span><span class="value">${orderResult.customer.nis}</span></div>
+        <div class="row"><span class="label">Kamar</span><span class="value">${orderResult.customer.kamar}</span></div>
+        <div class="row"><span class="label">Kelas</span><span class="value">${orderResult.customer.kelas}</span></div>
         <div class="row"><span class="label">Tgl. Masuk</span><span class="value">${tglMasuk}</span></div>
         <div class="divider"></div>
         <div class="qr">
@@ -379,16 +387,89 @@ export default function IntakePage() {
           <p>atau</p>
           <p class="track-url">Buka situs: ${trackUrl}</p>
           <p class="track-url">Masukkan kode order: <b>${orderResult.orderCode}</b></p>
-
         </div>
         <div class="footer">
           <p>Terima kasih atas kepercayaan Anda!</p>
         </div>
-        <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); }<\/script>
+      </div>`;
+
+    const copies = Array.from({ length: printCopies }, () => notaHtml).join('');
+
+    const existing = document.getElementById('__print_frame__');
+    if (existing) existing.remove();
+    const iframe = document.createElement('iframe');
+    iframe.id = '__print_frame__';
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0;visibility:hidden;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument!;
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="id">
+      <head>
+        <meta charset="UTF-8">
+        <title>Nota Laundry - ${orderResult.orderCode}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          html, body { height: auto; }
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 11px; color: #000;
+            padding: 3mm 4mm;
+            ${/^\d+$/.test(paperWidth) ? `width:${paperWidth}mm;` : 'width:100%;'}
+          }
+          .copy { break-after: page; }
+          .copy:last-child { break-after: avoid; }
+          .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
+          .header h1 { font-size: 1.3em; font-weight: bold; letter-spacing: 1px; }
+          .header p { font-size: 0.9em; }
+          .order-code { text-align: center; font-size: 1.6em; font-weight: bold; letter-spacing: 2px; margin: 5px 0; padding: 4px; border: 2px solid #000; }
+          .row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 1em; gap: 4px; }
+          .label { color: #444; white-space: nowrap; }
+          .value { font-weight: bold; text-align: right; word-break: break-all; }
+          .divider { border-top: 1px dashed #000; margin: 5px 0; }
+          .qr { text-align: center; margin: 6px 0; }
+          .qr img { width: 55%; max-width: 110px; height: auto; }
+          .qr-label { font-size: 0.85em; margin-bottom: 3px; }
+          .track-url { text-align: center; font-size: 0.75em; word-break: break-all; margin-top: 3px; color: #333; }
+          .footer { text-align: center; font-size: 0.8em; border-top: 2px dashed #000; padding-top: 5px; margin-top: 5px; }
+        </style>
+      </head>
+      <body>
+        ${copies}
+        <script>
+          (function() {
+            var pw = '${paperWidth}';
+            var isTherm = /^\\d+$/.test(pw);
+            var namedSize = { A4:'A4', A5:'A5', F4:'210mm 330mm', LETTER:'letter' };
+            function applyAndPrint() {
+              var s = document.createElement('style');
+              if (isTherm) {
+                var h = document.body.scrollHeight;
+                var perPage = Math.ceil(h / ${printCopies});
+                s.textContent = '@page{size:' + pw + 'mm ' + perPage + 'px;margin:0;}';
+              } else {
+                s.textContent = '@page{size:' + (namedSize[pw] || pw) + ';margin:10mm 15mm;}';
+              }
+              document.head.appendChild(s);
+              window.print();
+              window.onafterprint = function(){ try { window.frameElement.remove(); } catch(e){} };
+            }
+            var imgs = Array.prototype.slice.call(document.querySelectorAll('img'));
+            var pending = imgs.filter(function(i){ return !i.complete; });
+            if (pending.length === 0) { applyAndPrint(); }
+            else {
+              var done = 0;
+              pending.forEach(function(i){
+                i.onload = i.onerror = function(){ if (++done === pending.length) applyAndPrint(); };
+              });
+            }
+          })();
+        <\/script>
       </body>
       </html>
     `);
-    printWindow.document.close();
+    doc.close();
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -397,15 +478,188 @@ export default function IntakePage() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      <div className="max-w-2xl mx-auto px-4 py-3 lg:py-6 pb-nav">
+      {/* ── Mobile: success view ATAU form (tidak keduanya) ─────────────────── */}
+      <div className="lg:hidden">
+        {orderResult ? (
+          <div className="flex flex-col items-center justify-center text-center
+                          min-h-[calc(100dvh-3.5rem)] px-3
+                          mobile-landscape:flex-row mobile-landscape:items-center
+                          mobile-landscape:gap-4 mobile-landscape:text-left mobile-landscape:px-4">
+
+            {/* Kiri (portrait: atas) — icon + judul + kode order */}
+            <div className="flex flex-col items-center
+                            mobile-landscape:items-start mobile-landscape:flex-1 mobile-landscape:min-w-0">
+              <div className="w-12 h-12 mobile-landscape:w-10 mobile-landscape:h-10
+                              bg-green-100 rounded-full flex items-center justify-center mb-2">
+                <svg className="w-7 h-7 mobile-landscape:w-6 mobile-landscape:h-6 text-green-600"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-bold text-gray-900 leading-tight">Order Berhasil Dibuat!</h2>
+              <p className="text-xs text-gray-500 mt-0.5 mb-3 mobile-landscape:mb-2">Cucian siap diproses</p>
+              <div className="font-mono text-xl mobile-landscape:text-lg font-bold text-indigo-700
+                              bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-xl tracking-widest">
+                {orderResult.orderCode}
+              </div>
+            </div>
+
+            {/* Kanan (portrait: bawah) — detail + tombol */}
+            <div className="w-full max-w-xs mobile-landscape:flex-1 mobile-landscape:min-w-0 mt-3 mobile-landscape:mt-0">
+              <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100 mb-3 text-left">
+                <div className="flex justify-between items-center px-3 py-2">
+                  <span className="text-xs text-gray-500 flex-shrink-0 mr-2">Santri</span>
+                  <span className="text-xs font-semibold text-gray-900 text-right truncate">{orderResult.customer.nama}</span>
+                </div>
+                <div className="flex justify-between items-center px-3 py-2">
+                  <span className="text-xs text-gray-500 flex-shrink-0 mr-2">NIS</span>
+                  <span className="text-xs font-mono text-gray-800">{orderResult.customer.nis}</span>
+                </div>
+                <div className="flex justify-between items-center px-3 py-2">
+                  <span className="text-xs text-gray-500 flex-shrink-0 mr-2">Kamar · Kelas</span>
+                  <span className="text-xs text-gray-800">{orderResult.customer.kamar} · {orderResult.customer.kelas}</span>
+                </div>
+                <div className="flex justify-between items-center px-3 py-2">
+                  <span className="text-xs text-gray-500 flex-shrink-0 mr-2">Est. Selesai</span>
+                  <span className="text-xs font-medium text-gray-800 text-right">
+                    {new Date(orderResult.estimatedCompletion).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 mobile-landscape:flex-row">
+                <button onClick={handlePrint}
+                  className="btn-primary w-full py-3 mobile-landscape:py-2.5 text-sm flex items-center justify-center gap-1.5">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Cetak Nota ({printCopies} copy)
+                </button>
+                <button onClick={() => setOrderResult(null)} className="btn-secondary w-full py-3 mobile-landscape:py-2.5 text-sm">
+                  Order Baru
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="px-4 py-3 pb-nav">
+            <div className="mb-3">
+              <h1 className="text-lg font-bold text-gray-900">Penerimaan Cucian</h1>
+            </div>
+            <div className="card p-4">
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+              )}
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nama Santri <span className="text-red-500">*</span>
+                  </label>
+                  <div ref={dropdownRef} className="relative">
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          className="input-field pr-10"
+                          placeholder="Ketik nama atau NIS..."
+                          value={customerQuery}
+                          onChange={(e) => { setCustomerQuery(e.target.value); setSelectedCustomer(null); }}
+                        />
+                        {selectedCustomer && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                      <button type="button" onClick={openCardScanner} title="Scan QR" className="btn-secondary text-sm flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                        </svg>
+                        <span className="hidden sm:inline">Scan QR</span>
+                      </button>
+                      <button type="button" onClick={() => setShowNewCustomer(true)} title="Tambah santri baru" className="btn-secondary text-sm flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                        <span className="hidden sm:inline">Santri Baru</span>
+                      </button>
+                    </div>
+                    {showDropdown && customers.length > 0 && (
+                      <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        {customers.map((c) => (
+                          <button key={c.id} type="button" onClick={() => selectCustomer(c)}
+                            className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 text-sm transition-colors">
+                            <span className="font-medium text-gray-800">{c.nama}</span>
+                            <span className="ml-2 text-gray-400 text-xs">NIS: {c.nis}</span>
+                            <span className="ml-1 text-gray-400 text-xs">· {c.kamar} · {c.kelas}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {showDropdown && customerQuery.length > 0 && customers.length === 0 && (
+                      <div className="absolute z-10 left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-3 text-sm text-gray-500 w-full">
+                        Santri tidak ditemukan — gunakan tombol &quot;+ Santri Baru&quot;
+                      </div>
+                    )}
+                  </div>
+                  {selectedCustomer && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+                      <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-indigo-800 font-medium">{selectedCustomer.nama}</span>
+                        <span className="text-xs text-indigo-500 ml-2">NIS: {selectedCustomer.nis}</span>
+                        <span className="text-xs text-indigo-400 ml-1">· {selectedCustomer.kamar} · {selectedCustomer.kelas}</span>
+                      </div>
+                      <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerQuery(''); }}
+                        className="ml-auto text-indigo-400 hover:text-indigo-600">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Catatan <span className="text-gray-400 font-normal">(opsional)</span>
+                  </label>
+                  <textarea className="input-field resize-none" rows={2} placeholder="Catatan khusus..."
+                    value={notes} onChange={(e) => setNotes(e.target.value)} />
+                </div>
+                {selectedCustomer && (
+                  <button type="submit" disabled={loading}
+                    className="btn-primary w-full py-3 flex items-center justify-center gap-2">
+                    {loading ? (
+                      <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>Memproses...</>
+                    ) : (
+                      <><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>Buat Order</>
+                    )}
+                  </button>
+                )}
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Desktop: success card (jika ada) + form selalu tampil ────────────── */}
+      <div className="hidden lg:block max-w-2xl mx-auto px-4 py-3 lg:py-6 pb-nav">
         <div className="mb-3 lg:mb-6">
           <h1 className="text-lg lg:text-2xl font-bold text-gray-900">Penerimaan Cucian</h1>
           <p className="hidden lg:block text-gray-500 mt-1">Daftarkan cucian baru untuk santri</p>
         </div>
 
-        {/* Success Result */}
+        {/* Desktop success card */}
         {orderResult && (
-          <div className="card mb-6 border-green-200 bg-green-50">
+          <div className="card border-green-200 bg-green-50 mb-6">
             <div className="flex items-start gap-4">
               <div className="flex-shrink-0 w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                 <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -415,35 +669,31 @@ export default function IntakePage() {
               <div className="flex-1">
                 <h3 className="font-semibold text-green-800">Order Berhasil Dibuat!</h3>
                 <div className="mt-3 flex gap-4 items-start">
-                  <div className="flex-1">
-                    <div className="space-y-1 text-sm text-green-700">
-                      <p><span className="font-medium">Kode Order:</span> <span className="font-mono font-bold text-lg">{orderResult.orderCode}</span></p>
-                      <p><span className="font-medium">Santri:</span> {orderResult.customerName}</p>
-                      <p><span className="font-medium">Berat:</span> {orderResult.weightKg} kg</p>
-                      <p><span className="font-medium">Est. Selesai:</span> {new Date(orderResult.estimatedCompletion).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                    </div>
-                    <div className="mt-4 flex gap-2">
-                      <button onClick={handlePrint} className="btn-primary text-sm flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                        </svg>
-                        Cetak Nota
-                      </button>
-                      <button onClick={() => setOrderResult(null)} className="btn-secondary text-sm">
-                        Order Baru
-                      </button>
-                    </div>
+                  <div className="flex-1 space-y-1 text-sm text-green-700">
+                    <p><span className="font-medium">Kode Order:</span> <span className="font-mono font-bold text-lg">{orderResult.orderCode}</span></p>
+                    <p><span className="font-medium">Santri:</span> {orderResult.customer.nama}</p>
+                    <p><span className="font-medium">NIS:</span> {orderResult.customer.nis}</p>
+                    <p><span className="font-medium">Kamar:</span> {orderResult.customer.kamar} &nbsp;|&nbsp; <span className="font-medium">Kelas:</span> {orderResult.customer.kelas}</p>
+                    <p><span className="font-medium">Est. Selesai:</span> {new Date(orderResult.estimatedCompletion).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                   </div>
-                  <div className="flex-shrink-0">
-                    <img src={orderResult.qrCode} alt="QR Code" className="w-28 h-28 rounded border border-green-200" />
-                  </div>
+                  <img src={orderResult.qrCode} alt="QR Code" className="w-24 h-24 flex-shrink-0 rounded border border-green-200" />
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <button onClick={handlePrint} className="btn-primary text-sm flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Cetak Nota ({printCopies} copy)
+                  </button>
+                  <button onClick={() => setOrderResult(null)} className="btn-secondary text-sm">
+                    Tutup
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Form */}
         <div className="card p-4 lg:p-6">
           <h2 className="hidden lg:block text-lg font-semibold text-gray-800 mb-5">Form Penerimaan</h2>
 
@@ -481,6 +731,18 @@ export default function IntakePage() {
                       </div>
                     )}
                   </div>
+                  {/* Scan QR — visible on all screens */}
+                  <button
+                    type="button"
+                    onClick={openCardScanner}
+                    title="Scan QR Kartu Pelajar"
+                    className="btn-secondary text-sm flex items-center gap-1"
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                    </svg>
+                    <span className="hidden sm:inline">Scan QR</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => setShowNewCustomer(true)}
@@ -503,10 +765,9 @@ export default function IntakePage() {
                         onClick={() => selectCustomer(c)}
                         className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 text-sm transition-colors"
                       >
-                        <span className="font-medium text-gray-800">{c.name}</span>
-                        {c.customerId && (
-                          <span className="ml-2 text-gray-400 text-xs">NIS: {c.customerId}</span>
-                        )}
+                        <span className="font-medium text-gray-800">{c.nama}</span>
+                        <span className="ml-2 text-gray-400 text-xs">NIS: {c.nis}</span>
+                        <span className="ml-1 text-gray-400 text-xs">· {c.kamar} · {c.kelas}</span>
                       </button>
                     ))}
                   </div>
@@ -525,14 +786,15 @@ export default function IntakePage() {
                   <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
                   </svg>
-                  <span className="text-sm text-indigo-800 font-medium">{selectedCustomer.name}</span>
-                  {selectedCustomer.customerId && (
-                    <span className="text-xs text-indigo-500">NIS: {selectedCustomer.customerId}</span>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-indigo-800 font-medium">{selectedCustomer.nama}</span>
+                    <span className="text-xs text-indigo-500 ml-2">NIS: {selectedCustomer.nis}</span>
+                    <span className="text-xs text-indigo-400 ml-1">· {selectedCustomer.kamar} · {selectedCustomer.kelas}</span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => { setSelectedCustomer(null); setCustomerQuery(''); }}
-                    className="ml-auto text-indigo-400 hover:text-indigo-600"
+                    className="ml-auto text-indigo-400 hover:text-indigo-600 flex-shrink-0"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -540,37 +802,6 @@ export default function IntakePage() {
                   </button>
                 </div>
               )}
-            </div>
-
-            {/* Weight */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Berat Cucian (kg) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                className="input-field"
-                placeholder="Contoh: 3,5"
-                value={weightKg}
-                onChange={(e) => setWeightKg(e.target.value)}
-                min="0.1"
-                step="0.1"
-                required
-              />
-            </div>
-
-            {/* Item Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Deskripsi Item <span className="text-gray-400 font-normal">(opsional)</span>
-              </label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="Contoh: 3 baju, 2 celana, 1 mukena"
-                value={itemDescription}
-                onChange={(e) => setItemDescription(e.target.value)}
-              />
             </div>
 
             {/* Notes */}
@@ -589,9 +820,9 @@ export default function IntakePage() {
 
             <button
               type="submit"
-              disabled={loading || (!selectedCustomer && !customerQuery.trim())}
+              disabled={loading || !selectedCustomer}
               className={`btn-primary w-full py-3 flex items-center justify-center gap-2 ${
-                !selectedCustomer && !customerQuery.trim() ? 'hidden lg:flex' : ''
+                !selectedCustomer ? 'hidden lg:flex' : ''
               }`}
             >
               {loading ? (
@@ -693,6 +924,15 @@ export default function IntakePage() {
                 </button>
               </div>
 
+              {/* Hidden file input for image upload */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+
               {/* Status & actions */}
               <div className="px-4 py-4 mobile-landscape:flex-1 mobile-landscape:flex mobile-landscape:flex-col mobile-landscape:justify-center">
                 {scannerMsg && scannerState !== 'error' && !cameraError && (
@@ -715,14 +955,37 @@ export default function IntakePage() {
                     </>
                   )}
                   {cameraError && (
-                    <button onClick={closeCardScanner} className="btn-secondary flex-1 text-sm">
-                      Tutup & Isi Manual
-                    </button>
+                    <>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="btn-primary flex-1 text-sm flex items-center justify-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Upload Foto QR
+                      </button>
+                      <button onClick={closeCardScanner} className="btn-secondary text-sm px-3 mobile-landscape:px-0">
+                        Isi Manual
+                      </button>
+                    </>
                   )}
                   {(scannerState === 'idle' || scannerState === 'scanning') && !cameraError && (
-                    <button onClick={closeCardScanner} className="btn-secondary flex-1 text-sm">
-                      Batal
-                    </button>
+                    <>
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="btn-secondary flex-1 text-sm flex items-center justify-center gap-1"
+                        title="Upload gambar QR code"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>Upload Gambar</span>
+                      </button>
+                      <button onClick={closeCardScanner} className="btn-secondary text-sm px-3 mobile-landscape:px-0">
+                        Batal
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -741,41 +1004,67 @@ export default function IntakePage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nama Santri <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="Nama lengkap santri..."
-                  value={newCustomer.name}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nomor Induk Santri (NIS) <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   className="input-field"
                   placeholder="Contoh: 2024001"
-                  value={newCustomer.customerId}
-                  onChange={(e) => setNewCustomer({ ...newCustomer, customerId: e.target.value })}
+                  value={newCustomer.nis}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, nis: e.target.value })}
+                  autoFocus
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nama Santri <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Nama lengkap santri..."
+                  value={newCustomer.nama}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, nama: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Kamar <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Contoh: A-12"
+                    value={newCustomer.kamar}
+                    onChange={(e) => setNewCustomer({ ...newCustomer, kamar: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Kelas <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Contoh: X IPA 1"
+                    value={newCustomer.kelas}
+                    onChange={(e) => setNewCustomer({ ...newCustomer, kelas: e.target.value })}
+                  />
+                </div>
               </div>
             </div>
 
             <div className="mt-5 flex gap-3">
               <button
                 onClick={handleSaveNewCustomer}
-                disabled={savingCustomer || !newCustomer.name.trim() || !newCustomer.customerId.trim()}
+                disabled={savingCustomer || !newCustomer.nis.trim() || !newCustomer.nama.trim() || !newCustomer.kamar.trim() || !newCustomer.kelas.trim()}
                 className="btn-primary flex-1"
               >
                 {savingCustomer ? 'Menyimpan...' : 'Simpan'}
               </button>
               <button
-                onClick={() => { setShowNewCustomer(false); setNewCustomer({ name: '', customerId: '' }); }}
+                onClick={() => { setShowNewCustomer(false); setNewCustomer({ nis: '', nama: '', kamar: '', kelas: '' }); }}
                 className="btn-secondary flex-1"
               >
                 Batal
@@ -790,7 +1079,7 @@ export default function IntakePage() {
       <div className={`lg:hidden fixed z-40 pointer-events-none fab-above-nav
         inset-x-0 flex justify-center
         mobile-landscape:inset-x-auto mobile-landscape:right-4 mobile-landscape:justify-end
-        ${selectedCustomer || customerQuery.trim() ? 'hidden' : ''}
+        ${selectedCustomer || orderResult ? 'hidden' : ''}
       `}>
         <button
           type="button"

@@ -1,6 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import apiClient from '../api/client';
+import { useAppConfigStore } from '../stores/appConfigStore';
 
 interface StageHistory {
   id: string;
@@ -16,8 +17,7 @@ interface StageHistory {
 interface OrderData {
   id: string;
   orderCode: string;
-  customerName: string;
-  weightKg: number;
+  customer: { nis: string; nama: string; kamar: string; kelas: string };
   status: string;
   statusLabel: string;
   createdAt: string;
@@ -60,6 +60,7 @@ const STAGE_LABELS_SHORT: Record<string, string> = {
 
 
 export default function PublicTrackPage() {
+  const appTitle = useAppConfigStore((s) => s.title);
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('order') || 'LAU-');
   const [order, setOrder] = useState<OrderData | null>(null);
@@ -109,7 +110,7 @@ export default function PublicTrackPage() {
           </div>
           <div>
             <h1 className="font-bold text-sm sm:text-base text-gray-900 leading-tight">Lacak Cucian</h1>
-            <p className="text-xs text-gray-500">Laundry Pesantren</p>
+            <p className="text-xs text-gray-500">{appTitle}</p>
           </div>
         </div>
       </div>
@@ -162,8 +163,8 @@ export default function PublicTrackPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-gray-400 font-mono uppercase tracking-wider">{order.orderCode}</p>
-                  <h2 className="text-base sm:text-xl font-bold text-gray-900 mt-0.5 mobile-landscape:text-sm">{order.customerName}</h2>
-                  <p className="text-xs sm:text-sm text-gray-500 mobile-landscape:hidden">{order.weightKg} kg cucian</p>
+                  <h2 className="text-base sm:text-xl font-bold text-gray-900 mt-0.5 mobile-landscape:text-sm">{order.customer?.nama}</h2>
+                  <p className="text-xs sm:text-sm text-gray-500 mobile-landscape:hidden">NIS: {order.customer?.nis} · {order.customer?.kamar} · {order.customer?.kelas}</p>
                 </div>
                 <div className="text-3xl sm:text-4xl mobile-landscape:text-2xl">{STAGE_ICONS[order.status] || '📦'}</div>
               </div>

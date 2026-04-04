@@ -231,8 +231,7 @@ export async function integrityCheck(req: Request, res: Response): Promise<void>
       order: {
         id: order.id,
         orderCode: order.orderCode,
-        customerName: order.customerName,
-        weightKg: order.weightKg,
+        customer: order.customer,
         status: order.status,
         nextStage,
         estimatedCompletion: order.estimatedCompletion,

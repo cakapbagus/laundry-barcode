@@ -21,8 +21,7 @@ const STAGE_CATEGORY: Record<string, string> = {
 interface OrderInfo {
   id: string;
   orderCode: string;
-  customerName: string;
-  weightKg: number;
+  customer: { nis: string; nama: string; kamar: string; kelas: string };
   status: string;
   nextStage: string | null;
   estimatedCompletion: string;
@@ -362,11 +361,19 @@ export default function ScannerPage() {
                 </div>
                 <div className="flex justify-between mobile-landscape:contents">
                   <span className="text-gray-500">Nama Santri</span>
-                  <span className="font-medium text-gray-800 truncate">{orderInfo.customerName}</span>
+                  <span className="font-medium text-gray-800 truncate">{orderInfo.customer?.nama}</span>
                 </div>
                 <div className="flex justify-between mobile-landscape:contents">
-                  <span className="text-gray-500">Berat</span>
-                  <span className="font-medium text-gray-800">{orderInfo.weightKg} kg</span>
+                  <span className="text-gray-500">NIS</span>
+                  <span className="font-medium text-gray-800">{orderInfo.customer?.nis}</span>
+                </div>
+                <div className="flex justify-between mobile-landscape:contents">
+                  <span className="text-gray-500">Kamar</span>
+                  <span className="font-medium text-gray-800">{orderInfo.customer?.kamar}</span>
+                </div>
+                <div className="flex justify-between mobile-landscape:contents">
+                  <span className="text-gray-500">Kelas</span>
+                  <span className="font-medium text-gray-800">{orderInfo.customer?.kelas}</span>
                 </div>
                 <div className="flex justify-between mobile-landscape:contents">
                   <span className="text-gray-500">Status</span>

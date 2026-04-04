@@ -1,36 +1,38 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import apiClient from '../api/client';
 import Navbar from '../components/Navbar';
+import { useAppConfigStore } from '../stores/appConfigStore';
 
 const STATUS_LABEL: Record<string, string> = {
+  CANCELLED: 'Dibatalkan',
   INTAKE: 'Diterima',
   WASHING: 'Dicuci',
   DRYING: 'Dikeringkan',
   IRONING: 'Disetrika',
-  READY: 'Siap Ambil',
+  PACKING: 'Dikemas',
+  FINISHED: 'Selesai',
   PICKED_UP: 'Diambil',
 };
 
 const STATUS_COLOR: Record<string, string> = {
+  CANCELLED: 'bg-red-100 text-red-700',
   INTAKE: 'bg-blue-100 text-blue-700',
   WASHING: 'bg-cyan-100 text-cyan-700',
   DRYING: 'bg-yellow-100 text-yellow-700',
   IRONING: 'bg-orange-100 text-orange-700',
-  READY: 'bg-green-100 text-green-700',
+  PACKING: 'bg-purple-100 text-purple-700',
+  FINISHED: 'bg-green-100 text-green-700',
   PICKED_UP: 'bg-gray-100 text-gray-500',
 };
 
 interface Order {
   id: string;
   orderCode: string;
-  customerName: string;
-  weightKg: number;
+  customer: { id: string; nis: string; nama: string; kamar: string; kelas: string };
   status: string;
   createdAt: string;
   qrCode: string;
-  itemDescription: string | null;
   notes: string | null;
-  customer?: { customerId?: string };
   createdBy?: { name: string };
 }
 
@@ -49,7 +51,7 @@ function InfoModal({ order, onClose }: { order: Order; onClose: () => void }) {
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="font-mono font-bold text-indigo-700 text-sm">{order.orderCode}</p>
-            <p className="text-xs text-gray-500">{order.customerName}</p>
+            <p className="text-xs text-gray-500">{order.customer?.nama} · NIS: {order.customer?.nis}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -58,11 +60,9 @@ function InfoModal({ order, onClose }: { order: Order; onClose: () => void }) {
           </button>
         </div>
         <div className="space-y-3">
-          <div>
-            <p className="text-xs font-medium text-gray-500 mb-1">Deskripsi Item</p>
-            <p className="text-sm text-gray-800 bg-gray-50 rounded-lg px-3 py-2 min-h-[40px]">
-              {order.itemDescription || <span className="text-gray-400 italic">-</span>}
-            </p>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><p className="text-xs text-gray-500">Kamar</p><p className="font-medium">{order.customer?.kamar}</p></div>
+            <div><p className="text-xs text-gray-500">Kelas</p><p className="font-medium">{order.customer?.kelas}</p></div>
           </div>
           <div>
             <p className="text-xs font-medium text-gray-500 mb-1">Catatan</p>
@@ -77,6 +77,7 @@ function InfoModal({ order, onClose }: { order: Order; onClose: () => void }) {
 }
 
 export default function OrdersPage() {
+  const { title: appTitle, slogan: appSlogan, paperWidth } = useAppConfigStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, totalPages: 1, total: 0 });
   const [search, setSearch] = useState('');
@@ -84,6 +85,8 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [infoOrder, setInfoOrder] = useState<Order | null>(null);
+  const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   // Pull-to-refresh state
   const [pullDelta, setPullDelta] = useState(0);
@@ -114,6 +117,20 @@ export default function OrdersPage() {
 
   useEffect(() => { setPage(1); }, [search, statusFilter]);
 
+  async function handleConfirmCancel() {
+    if (!cancelOrder) return;
+    setCancelling(true);
+    try {
+      await apiClient.patch(`/orders/${cancelOrder.id}/cancel`);
+      setCancelOrder(null);
+      fetchOrders();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Gagal membatalkan order');
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   // Pull-to-refresh handlers (mobile only)
   function handleTouchStart(e: React.TouchEvent) {
     if (window.scrollY === 0) {
@@ -139,43 +156,56 @@ export default function OrdersPage() {
       day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
     const trackUrl = `${window.location.origin}/track`;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`
+    const existing = document.getElementById('__print_frame__');
+    if (existing) existing.remove();
+    const iframe = document.createElement('iframe');
+    iframe.id = '__print_frame__';
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0;visibility:hidden;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument!;
+    doc.open();
+    doc.write(`
       <!DOCTYPE html>
       <html lang="id">
       <head>
         <meta charset="UTF-8">
         <title>Nota Laundry - ${order.orderCode}</title>
         <style>
-          @page { size: auto; margin: 2mm 3mm; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Courier New', monospace; width: 100%; font-size: 11px; color: #000; }
-          .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
+          html, body { height: auto; }
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 11px; color: #000;
+            padding: 3mm 4mm;
+            ${/^\d+$/.test(paperWidth) ? `width:${paperWidth}mm;` : 'width:100%;'}
+          }
+          .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
           .header h1 { font-size: 1.3em; font-weight: bold; letter-spacing: 1px; }
           .header p { font-size: 0.9em; }
-          .order-code { text-align: center; font-size: 1.6em; font-weight: bold; letter-spacing: 2px; margin: 6px 0; padding: 5px 4px; border: 2px solid #000; }
-          .row { display: flex; justify-content: space-between; margin: 3px 0; font-size: 1em; gap: 4px; }
+          .order-code { text-align: center; font-size: 1.6em; font-weight: bold; letter-spacing: 2px; margin: 5px 0; padding: 4px; border: 2px solid #000; }
+          .row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 1em; gap: 4px; }
           .label { color: #444; white-space: nowrap; }
           .value { font-weight: bold; text-align: right; word-break: break-all; }
-          .divider { border-top: 1px dashed #000; margin: 6px 0; }
-          .qr { text-align: center; margin: 8px 0; }
+          .divider { border-top: 1px dashed #000; margin: 5px 0; }
+          .qr { text-align: center; margin: 6px 0; }
           .qr img { width: 55%; max-width: 110px; height: auto; }
-          .qr-label { font-size: 0.85em; margin-bottom: 4px; }
-          .track-url { text-align: center; font-size: 0.75em; word-break: break-all; margin-top: 4px; color: #333; }
-          .footer { text-align: center; font-size: 0.8em; border-top: 2px dashed #000; padding-top: 6px; margin-top: 6px; }
-          .reprint { text-align: center; font-size: 0.75em; color: #777; margin-bottom: 4px; }
+          .qr-label { font-size: 0.85em; margin-bottom: 3px; }
+          .track-url { text-align: center; font-size: 0.75em; word-break: break-all; margin-top: 3px; color: #333; }
+          .footer { text-align: center; font-size: 0.8em; border-top: 2px dashed #000; padding-top: 5px; margin-top: 5px; }
+          .reprint { text-align: center; font-size: 0.75em; color: #777; margin-bottom: 3px; }
         </style>
       </head>
       <body>
         <div class="header">
-          <h1>LAUNDRY PESANTREN</h1>
-          <p>Sistem Pelacak Cucian</p>
+          <h1>${appTitle.toUpperCase()}</h1>
+          <p>${appSlogan}</p>
         </div>
         <div class="reprint">*** CETAK ULANG ***</div>
         <div class="order-code">${order.orderCode}</div>
-        <div class="row"><span class="label">Nama Santri</span><span class="value">${order.customerName}</span></div>
-        <div class="row"><span class="label">Berat</span><span class="value">${order.weightKg} kg</span></div>
+        <div class="row"><span class="label">Nama Santri</span><span class="value">${order.customer?.nama}</span></div>
+        <div class="row"><span class="label">NIS</span><span class="value">${order.customer?.nis}</span></div>
+        <div class="row"><span class="label">Kamar</span><span class="value">${order.customer?.kamar}</span></div>
+        <div class="row"><span class="label">Kelas</span><span class="value">${order.customer?.kelas}</span></div>
         <div class="row"><span class="label">Tgl. Masuk</span><span class="value">${tglMasuk}</span></div>
         <div class="divider"></div>
         <div class="qr">
@@ -186,11 +216,38 @@ export default function OrdersPage() {
           <p class="track-url">Masukkan kode order: <b>${order.orderCode}</b></p>
         </div>
         <div class="footer"><p>Terima kasih atas kepercayaan Anda!</p></div>
-        <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); }<\/script>
+        <script>
+          (function() {
+            var pw = '${paperWidth}';
+            var isTherm = /^\\d+$/.test(pw);
+            var namedSize = { A4:'A4', A5:'A5', F4:'210mm 330mm', LETTER:'letter' };
+            function applyAndPrint() {
+              var s = document.createElement('style');
+              if (isTherm) {
+                var h = document.body.scrollHeight;
+                s.textContent = '@page{size:' + pw + 'mm ' + h + 'px;margin:0;}';
+              } else {
+                s.textContent = '@page{size:' + (namedSize[pw] || pw) + ';margin:10mm 15mm;}';
+              }
+              document.head.appendChild(s);
+              window.print();
+              window.onafterprint = function(){ try { window.frameElement.remove(); } catch(e){} };
+            }
+            var imgs = Array.prototype.slice.call(document.querySelectorAll('img'));
+            var pending = imgs.filter(function(i){ return !i.complete; });
+            if (pending.length === 0) { applyAndPrint(); }
+            else {
+              var done = 0;
+              pending.forEach(function(i){
+                i.onload = i.onerror = function(){ if (++done === pending.length) applyAndPrint(); };
+              });
+            }
+          })();
+        <\/script>
       </body>
       </html>
     `);
-    printWindow.document.close();
+    doc.close();
   }
 
   const pulling = pullDelta > 0;
@@ -262,6 +319,17 @@ export default function OrdersPage() {
         <>
           {/* Mobile cards (< sm) */}
           <div className="sm:hidden space-y-2">
+            {/* Pull-to-refresh hint — shown at top when idle */}
+            {!pulling && !loading && (
+              <div className="flex justify-center py-1">
+                <span className="text-xs text-gray-400 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                  Tarik untuk refresh
+                </span>
+              </div>
+            )}
             {orders.length === 0 && !loading && (
               <div className="card py-8 text-center text-gray-400">Tidak ada order ditemukan</div>
             )}
@@ -270,7 +338,7 @@ export default function OrdersPage() {
                 {/* Kiri: kode + nama */}
                 <div className="flex-1 min-w-0">
                   <p className="font-mono font-bold text-indigo-700 text-sm leading-tight">{order.orderCode}</p>
-                  <p className="text-gray-800 text-sm truncate">{order.customerName}</p>
+                  <p className="text-gray-800 text-sm truncate">{order.customer?.nama}</p>
                 </div>
                 {/* Tengah: status */}
                 <div className="flex-shrink-0">
@@ -280,7 +348,7 @@ export default function OrdersPage() {
                 </div>
                 {/* Kanan: aksi */}
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {(order.itemDescription || order.notes) && (
+                  {order.notes && (
                     <button
                       onClick={() => setInfoOrder(order)}
                       title="Lihat detail item & catatan"
@@ -288,6 +356,17 @@ export default function OrdersPage() {
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+                  )}
+                  {order.status === 'INTAKE' && (
+                    <button
+                      onClick={() => setCancelOrder(order)}
+                      title="Batalkan order"
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
                   )}
@@ -305,17 +384,6 @@ export default function OrdersPage() {
               </div>
             ))}
 
-            {/* Pull-to-refresh hint — shown at bottom when idle */}
-            {!pulling && !loading && (
-              <div className="flex justify-center pt-1 pb-2">
-                <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                  Tarik untuk refresh
-                </span>
-              </div>
-            )}
           </div>
 
           {/* Desktop table (≥ sm) */}
@@ -325,7 +393,7 @@ export default function OrdersPage() {
                 <tr className="border-b border-gray-100 text-left">
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Kode Order</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Nama Santri</th>
-                  <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Berat</th>
+                  <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Kamar / Kelas</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Status</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600 hidden md:table-cell">Tgl. Masuk</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600 text-center">Aksi</th>
@@ -342,8 +410,8 @@ export default function OrdersPage() {
                 {orders.map((order) => (
                   <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-mono font-bold text-indigo-700">{order.orderCode}</td>
-                    <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs text-gray-800">{order.customerName}</td>
-                    <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs text-gray-600">{order.weightKg} kg</td>
+                    <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs text-gray-800">{order.customer?.nama}</td>
+                    <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs text-gray-600">{order.customer?.kamar} / {order.customer?.kelas}</td>
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[order.status] || 'bg-gray-100 text-gray-600'}`}>
                         {STATUS_LABEL[order.status] || order.status}
@@ -357,7 +425,7 @@ export default function OrdersPage() {
                     </td>
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 text-center">
                       <div className="inline-flex items-center gap-1">
-                        {(order.itemDescription || order.notes) && (
+                        {order.notes && (
                           <button
                             onClick={() => setInfoOrder(order)}
                             title="Lihat detail item & catatan"
@@ -367,6 +435,18 @@ export default function OrdersPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             Info
+                          </button>
+                        )}
+                        {order.status === 'INTAKE' && (
+                          <button
+                            onClick={() => setCancelOrder(order)}
+                            title="Batalkan order"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            Batal
                           </button>
                         )}
                         <button
@@ -414,6 +494,34 @@ export default function OrdersPage() {
       </div>
 
       {infoOrder && <InfoModal order={infoOrder} onClose={() => setInfoOrder(null)} />}
+
+      {/* Confirm Cancel Modal */}
+      {cancelOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setCancelOrder(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <h3 className="text-base font-semibold text-gray-900">Batalkan Order?</h3>
+            </div>
+            <p className="text-sm text-gray-500 mb-1">Anda akan membatalkan order:</p>
+            <p className="font-mono font-bold text-indigo-700 text-sm">{cancelOrder.orderCode}</p>
+            <p className="text-sm text-gray-800">{cancelOrder.customer?.nama}</p>
+            <p className="text-xs text-red-500 mt-3 mb-5">Order yang dibatalkan tidak bisa dikembalikan ke status sebelumnya.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setCancelOrder(null)} disabled={cancelling} className="flex-1 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+                Kembali
+              </button>
+              <button onClick={handleConfirmCancel} disabled={cancelling} className="flex-1 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+                {cancelling ? 'Membatalkan...' : 'Ya, Batalkan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

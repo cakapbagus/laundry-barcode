@@ -37,8 +37,8 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       res.status(403).json({ error: 'Tidak dapat membuat akun MANAGER' });
       return;
     }
-    if (!['KASIR', 'OPERATOR'].includes(role)) {
-      res.status(400).json({ error: 'Role tidak valid (KASIR atau OPERATOR)' });
+    if (!['KASIR', 'OPERATOR', 'MUSYRIF'].includes(role)) {
+      res.status(400).json({ error: 'Role tidak valid (KASIR, OPERATOR, atau MUSYRIF)' });
       return;
     }
 
@@ -93,12 +93,12 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
       res.status(403).json({ error: 'Tidak dapat menonaktifkan akun MANAGER' });
       return;
     }
-    if (role !== undefined && user.role === 'MANAGER') {
+    if (role !== undefined && user.role !== 'MANAGER') {
       res.status(403).json({ error: 'Tidak dapat mengubah role akun MANAGER' });
       return;
     }
-    if (role !== undefined && !['KASIR', 'OPERATOR'].includes(role)) {
-      res.status(400).json({ error: 'Role tidak valid (KASIR atau OPERATOR)' });
+    if (role !== undefined && !['KASIR', 'OPERATOR', 'MUSYRIF', 'MANAGER'].includes(role)) {
+      res.status(400).json({ error: 'Role tidak valid (KASIR, OPERATOR, atau MUSYRIF)' });
       return;
     }
 

@@ -27,7 +27,11 @@
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
-  /* Bottom padding that accounts for fixed bottom tab bar + iOS safe area */
+}
+
+@layer utilities {
+  /* Bottom padding that accounts for fixed bottom tab bar + iOS safe area.
+     Must be in @layer utilities (not components) so it wins over py-* / lg:py-* utilities. */
   .pb-nav {
     padding-bottom: max(96px, calc(56px + env(safe-area-inset-bottom, 0px)));
   }

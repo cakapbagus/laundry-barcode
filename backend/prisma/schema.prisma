@@ -23,11 +23,13 @@ model User {
 }
 
 model Customer {
-  id         String   @id @default(uuid())
-  name       String
-  customerId String   @unique // Nomor induk santri (NIS) — wajib unik
-  createdAt  DateTime @default(now())
-  orders     Order[]
+  id        String   @id @default(uuid())
+  nis       String   @unique // Nomor Induk Santri — wajib unik
+  nama      String
+  kamar     String
+  kelas     String
+  createdAt DateTime @default(now())
+  orders    Order[]
 }
 
 model Machine {
@@ -45,9 +47,6 @@ model Order {
   qrCode              String
   customerId          String
   customer            Customer  @relation(fields: [customerId], references: [id])
-  customerName        String
-  weightKg            Float
-  itemDescription     String?
   notes               String?
   status              String    @default("INTAKE")
   createdAt           DateTime  @default(now())

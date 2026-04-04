@@ -5,17 +5,22 @@ import Navbar from '../components/Navbar';
 
 interface KpiSummary {
   totalOrders: number;
-  totalWeight: number;
-  estimatedRevenue: number | null;
   percentComplete: number;
   avgCycleTime: number;
+}
+
+interface Customer {
+  id: string;
+  nis: string;
+  nama: string;
+  kamar: string;
+  kelas: string;
 }
 
 interface Order {
   id: string;
   orderCode: string;
-  customerName: string;
-  weightKg: number;
+  customer: Customer;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -39,8 +44,9 @@ interface Setting {
   STUCK_HOURS: string;
 }
 
-const STAGES = ['INTAKE', 'WASHING', 'DRYING', 'IRONING', 'PACKING', 'FINISHED', 'PICKED_UP'];
+const STAGES = ['CANCELLED', 'INTAKE', 'WASHING', 'DRYING', 'IRONING', 'PACKING', 'FINISHED', 'PICKED_UP'];
 const STAGE_LABELS: Record<string, string> = {
+  CANCELLED: 'Dibatalkan',
   INTAKE: 'Penerimaan',
   WASHING: 'Pencucian',
   DRYING: 'Pengeringan',
@@ -50,6 +56,7 @@ const STAGE_LABELS: Record<string, string> = {
   PICKED_UP: 'Diambil',
 };
 const STAGE_COLORS: Record<string, string> = {
+  CANCELLED: 'bg-red-50 border-red-200',
   INTAKE: 'bg-gray-100 border-gray-200',
   WASHING: 'bg-blue-50 border-blue-200',
   DRYING: 'bg-cyan-50 border-cyan-200',
@@ -59,6 +66,7 @@ const STAGE_COLORS: Record<string, string> = {
   PICKED_UP: 'bg-slate-50 border-slate-200',
 };
 const STAGE_HEADER_COLORS: Record<string, string> = {
+  CANCELLED: 'text-red-700',
   INTAKE: 'text-gray-700',
   WASHING: 'text-blue-700',
   DRYING: 'text-cyan-700',
@@ -68,6 +76,7 @@ const STAGE_HEADER_COLORS: Record<string, string> = {
   PICKED_UP: 'text-slate-600',
 };
 const STAGE_PILL_COLORS: Record<string, string> = {
+  CANCELLED: 'bg-red-100 text-red-700',
   INTAKE: 'bg-gray-200 text-gray-700',
   WASHING: 'bg-blue-100 text-blue-700',
   DRYING: 'bg-cyan-100 text-cyan-700',
@@ -85,10 +94,6 @@ function formatDuration(seconds: number): string {
   return m > 0 ? `${h}j ${m}m` : `${h}j`;
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
-}
-
 function getTimeInStage(order: Order): number {
   const lastHistory = order.history?.[order.history.length - 1];
   if (!lastHistory) return 0;
@@ -97,7 +102,7 @@ function getTimeInStage(order: Order): number {
 
 function OrderCard({ order, onClick, stuckThresholdSec }: { order: Order; onClick: () => void; stuckThresholdSec: number }) {
   const timeInStage = getTimeInStage(order);
-  const isStuck = timeInStage > stuckThresholdSec && order.status !== 'FINISHED' && order.status !== 'PICKED_UP';
+  const isStuck = timeInStage > stuckThresholdSec && order.status !== 'FINISHED' && order.status !== 'PICKED_UP' && order.status !== 'CANCELLED';
 
   return (
     <div
@@ -112,7 +117,7 @@ function OrderCard({ order, onClick, stuckThresholdSec }: { order: Order; onClic
           </svg>
         )}
       </div>
-      <p className="text-xs font-medium text-gray-800 mt-0.5 truncate">{order.customerName}</p>
+      <p className="text-xs font-medium text-gray-800 mt-0.5 truncate">{order.customer?.nama}</p>
       {order.history?.length > 0 && (
         <p className="text-[10px] text-gray-400 mt-0.5 truncate">
           {order.history[order.history.length - 1]?.operator?.name} · {formatDuration(timeInStage)}
@@ -125,7 +130,7 @@ function OrderCard({ order, onClick, stuckThresholdSec }: { order: Order; onClic
 function OrderDetailModal({ order, onClose, stuckThresholdSec }: { order: Order; onClose: () => void; stuckThresholdSec: number }) {
   if (!order) return null;
   const timeInStage = getTimeInStage(order);
-  const isStuck = timeInStage > stuckThresholdSec && order.status !== 'FINISHED' && order.status !== 'PICKED_UP';
+  const isStuck = timeInStage > stuckThresholdSec && order.status !== 'FINISHED' && order.status !== 'PICKED_UP' && order.status !== 'CANCELLED';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -133,7 +138,7 @@ function OrderDetailModal({ order, onClose, stuckThresholdSec }: { order: Order;
         <div className="flex items-center justify-between p-5 border-b">
           <div>
             <h3 className="font-bold text-gray-800 font-mono">{order.orderCode}</h3>
-            <p className="text-sm text-gray-500">{order.customerName}</p>
+            <p className="text-sm text-gray-500">{order.customer?.nama} · NIS: {order.customer?.nis}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -152,8 +157,12 @@ function OrderDetailModal({ order, onClose, stuckThresholdSec }: { order: Order;
           )}
           <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
             <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-gray-500 text-xs">Berat</p>
-              <p className="font-semibold">{order.weightKg} kg</p>
+              <p className="text-gray-500 text-xs">Kamar</p>
+              <p className="font-semibold">{order.customer?.kamar}</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Kelas</p>
+              <p className="font-semibold">{order.customer?.kelas}</p>
             </div>
             <div className="bg-gray-50 rounded-lg p-3">
               <p className="text-gray-500 text-xs">Status</p>
@@ -163,7 +172,7 @@ function OrderDetailModal({ order, onClose, stuckThresholdSec }: { order: Order;
               <p className="text-gray-500 text-xs">Dibuat</p>
               <p className="font-semibold">{new Date(order.createdAt).toLocaleString('id-ID')}</p>
             </div>
-            <div className="bg-gray-50 rounded-lg p-3">
+            <div className="bg-gray-50 rounded-lg p-3 col-span-2">
               <p className="text-gray-500 text-xs">Est. Selesai</p>
               <p className="font-semibold">{new Date(order.estimatedCompletion).toLocaleDateString('id-ID')}</p>
             </div>
@@ -204,7 +213,10 @@ export default function DashboardPage() {
   const [settings, setSettings] = useState<Setting>({ STUCK_HOURS: '2' });
   const [visibleStages, setVisibleStages] = useState<Set<string>>(new Set(STAGES));
   // Mobile: which stages are expanded (default: all non-empty expanded)
-  const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set(['FINISHED', 'PICKED_UP']));
+  const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set(['CANCELLED', 'FINISHED', 'PICKED_UP']));
+  const [filterKamar, setFilterKamar] = useState('');
+  const [filterKelas, setFilterKelas] = useState('');
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -242,6 +254,7 @@ export default function DashboardPage() {
     socket.on('order:created', loadDashboard);
     socket.on('order:stage_updated', loadDashboard);
     socket.on('order:completed', loadDashboard);
+    socket.on('order:cancelled', loadDashboard);
     return () => { socket.disconnect(); };
   }, [loadDashboard]);
 
@@ -278,11 +291,13 @@ export default function DashboardPage() {
     try {
       const res = await apiClient.get(`/dashboard/reports/daily?month=${filterMonth}`);
       const { orders } = res.data;
-      const header = ['Kode Order', 'Nama Santri', 'Berat (kg)', 'Status', 'Dibuat', 'Est. Selesai'];
+      const header = ['Kode Order', 'NIS', 'Nama Santri', 'Kamar', 'Kelas', 'Status', 'Dibuat', 'Est. Selesai'];
       const rows = orders.map((o: Order) => [
         o.orderCode,
-        o.customerName,
-        o.weightKg,
+        o.customer?.nis || '',
+        o.customer?.nama || '',
+        o.customer?.kamar || '',
+        o.customer?.kelas || '',
         STAGE_LABELS[o.status] || o.status,
         new Date(o.createdAt).toLocaleString('id-ID'),
         new Date(o.estimatedCompletion).toLocaleDateString('id-ID'),
@@ -303,6 +318,18 @@ export default function DashboardPage() {
   const stuckThresholdSec = parseFloat(settings.STUCK_HOURS || '2') * 3600;
   const activeStages = STAGES.filter((s) => visibleStages.has(s));
   const allVisible = visibleStages.size === STAGES.length;
+
+  const allOrders = Object.values(ordersByStatus).flat();
+  const uniqueKamar = [...new Set(allOrders.map((o) => o.customer?.kamar).filter(Boolean))].sort();
+  const uniqueKelas = [...new Set(allOrders.map((o) => o.customer?.kelas).filter(Boolean))].sort();
+
+  function filterOrders(orders: Order[]): Order[] {
+    return orders.filter((o) => {
+      if (filterKamar && o.customer?.kamar !== filterKamar) return false;
+      if (filterKelas && o.customer?.kelas !== filterKelas) return false;
+      return true;
+    });
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -356,15 +383,11 @@ export default function DashboardPage() {
         {/* KPI Bar — mobile: horizontal scroll strip, desktop: grid */}
         {kpi && (
           <>
-            {/* Mobile KPI grid 3×2 */}
+            {/* Mobile KPI grid */}
             <div className="sm:hidden grid grid-cols-3 gap-2 mb-3">
               <div className="bg-white rounded-lg border border-gray-100 px-3 py-2">
                 <p className="text-[10px] text-gray-400 font-medium uppercase">Order</p>
                 <p className="text-lg font-bold text-indigo-600">{kpi.totalOrders}</p>
-              </div>
-              <div className="bg-white rounded-lg border border-gray-100 px-3 py-2">
-                <p className="text-[10px] text-gray-400 font-medium uppercase">Berat</p>
-                <p className="text-lg font-bold text-blue-600">{kpi.totalWeight.toFixed(1)}<span className="text-xs font-normal"> kg</span></p>
               </div>
               <div className="bg-white rounded-lg border border-gray-100 px-3 py-2">
                 <p className="text-[10px] text-gray-400 font-medium uppercase">Selesai</p>
@@ -374,30 +397,14 @@ export default function DashboardPage() {
                 <p className="text-[10px] text-gray-400 font-medium uppercase">Avg</p>
                 <p className="text-lg font-bold text-purple-600">{kpi.avgCycleTime > 0 ? formatDuration(kpi.avgCycleTime) : '-'}</p>
               </div>
-              {kpi.estimatedRevenue !== null ? (
-                <div className="bg-white rounded-lg border border-gray-100 px-3 py-2 col-span-2">
-                  <p className="text-[10px] text-gray-400 font-medium uppercase">Est. Pendapatan</p>
-                  <p className="text-sm font-bold text-emerald-600">{formatCurrency(kpi.estimatedRevenue)}</p>
-                </div>
-              ) : null}
             </div>
 
             {/* Desktop KPI grid */}
-            <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-4">
+            <div className="hidden sm:grid grid-cols-3 gap-3 mb-4">
               <div className="card py-3">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Order</p>
                 <p className="text-2xl font-bold text-indigo-600 mt-0.5">{kpi.totalOrders}</p>
               </div>
-              <div className="card py-3">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Berat</p>
-                <p className="text-2xl font-bold text-blue-600 mt-0.5">{kpi.totalWeight.toFixed(1)} <span className="text-base">kg</span></p>
-              </div>
-              {kpi.estimatedRevenue !== null && (
-                <div className="card py-3">
-                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Est. Pendapatan</p>
-                  <p className="text-lg font-bold text-emerald-600 mt-0.5">{formatCurrency(kpi.estimatedRevenue)}</p>
-                </div>
-              )}
               <div className="card py-3">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Selesai</p>
                 <div className="mt-0.5">
@@ -417,45 +424,110 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* Stage filter — single row scroll on mobile */}
-        <div className="flex items-center gap-1.5 sm:gap-2 mb-3 flex-wrap">
-          <span className="text-xs font-medium text-gray-400 flex-shrink-0">Filter:</span>
-          <button
-            onClick={toggleAllStages}
-            className={`flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
-              allVisible
-                ? 'bg-gray-800 text-white border-gray-800'
-                : 'bg-white text-gray-500 border-gray-300 hover:border-gray-400'
-            }`}
-          >
-            {allVisible && (
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-            Semua
-          </button>
-          {STAGES.map((stage) => {
-            const active = visibleStages.has(stage);
-            return (
-              <button
-                key={stage}
-                onClick={() => toggleStage(stage)}
-                className={`flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
-                  active
-                    ? `${STAGE_PILL_COLORS[stage]} border-transparent`
-                    : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+        {/* Kamar & Kelas filter */}
+        {(uniqueKamar.length > 0 || uniqueKelas.length > 0) && (
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span className="text-xs font-medium text-gray-400 flex-shrink-0">Santri:</span>
+            {uniqueKamar.length > 0 && (
+              <select
+                value={filterKamar}
+                onChange={(e) => setFilterKamar(e.target.value)}
+                className={`text-xs rounded-lg border py-0.5 px-2 pr-6 bg-white transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-400 ${
+                  filterKamar ? 'border-indigo-400 text-indigo-700 font-medium' : 'border-gray-200 text-gray-500'
                 }`}
               >
-                {active && (
+                <option value="">Semua Kamar</option>
+                {uniqueKamar.map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+            )}
+            {uniqueKelas.length > 0 && (
+              <select
+                value={filterKelas}
+                onChange={(e) => setFilterKelas(e.target.value)}
+                className={`text-xs rounded-lg border py-0.5 px-2 pr-6 bg-white transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-400 ${
+                  filterKelas ? 'border-indigo-400 text-indigo-700 font-medium' : 'border-gray-200 text-gray-500'
+                }`}
+              >
+                <option value="">Semua Kelas</option>
+                {uniqueKelas.map((k) => <option key={k} value={k}>{k}</option>)}
+              </select>
+            )}
+            {(filterKamar || filterKelas) && (
+              <button
+                onClick={() => { setFilterKamar(''); setFilterKelas(''); }}
+                className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-0.5"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Reset
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Stage filter — collapsible */}
+        <div className="mb-3">
+          {/* Toggle header */}
+          <button
+            onClick={() => setFilterOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            <svg
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${filterOpen ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            <span>Filter Tahap</span>
+            {!allVisible && (
+              <span className="ml-1 px-1.5 py-0 rounded-full bg-indigo-100 text-indigo-700 font-semibold">
+                {visibleStages.size}/{STAGES.length}
+              </span>
+            )}
+          </button>
+
+          {/* Pills — shown when open */}
+          {filterOpen && (
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap mt-2">
+              <button
+                onClick={toggleAllStages}
+                className={`flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
+                  allVisible
+                    ? 'bg-gray-800 text-white border-gray-800'
+                    : 'bg-white text-gray-500 border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                {allVisible && (
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 )}
-                {STAGE_LABELS[stage]}
+                Semua
               </button>
-            );
-          })}
+              {STAGES.map((stage) => {
+                const active = visibleStages.has(stage);
+                return (
+                  <button
+                    key={stage}
+                    onClick={() => toggleStage(stage)}
+                    className={`flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors ${
+                      active
+                        ? `${STAGE_PILL_COLORS[stage]} border-transparent`
+                        : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {active && (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                    {STAGE_LABELS[stage]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Kanban Board — vertical swimlanes on mobile, horizontal columns on desktop */}
@@ -463,7 +535,7 @@ export default function DashboardPage() {
         {/* Mobile: vertical stacked */}
         <div className="sm:hidden space-y-2">
           {activeStages.map((stage) => {
-            const stageOrders = ordersByStatus[stage] || [];
+            const stageOrders = filterOrders(ordersByStatus[stage] || []);
             const isCollapsed = collapsedStages.has(stage) || stageOrders.length === 0;
             const isEmpty = stageOrders.length === 0;
             return (
@@ -513,7 +585,7 @@ export default function DashboardPage() {
         <div className="hidden sm:block overflow-x-auto pb-2">
           <div className="flex gap-2 min-w-0" style={{ minWidth: `${activeStages.length * 152}px` }}>
             {activeStages.map((stage) => {
-              const stageOrders = ordersByStatus[stage] || [];
+              const stageOrders = filterOrders(ordersByStatus[stage] || []);
               return (
                 <div
                   key={stage}
