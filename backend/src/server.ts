@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
@@ -42,6 +43,9 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Serve frontend static files (production)
+app.use(express.static(path.join(__dirname, '../../frontend/dist')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', ordersRoutes);
@@ -56,6 +60,11 @@ app.use('/api/public', publicRoutes);
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// SPA fallback — semua non-API route ke index.html
+app.get(/^(?!\/api).*$/, (_req, res) => {
+  res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
 });
 
 // WebSocket connection
