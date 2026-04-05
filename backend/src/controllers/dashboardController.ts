@@ -11,7 +11,10 @@ export async function getSummary(req: Request, res: Response): Promise<void> {
     const endOfMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
     const monthOrders = await prisma.order.findMany({
-      where: { createdAt: { gte: startOfMonth, lte: endOfMonth } },
+      where: {
+        createdAt: { gte: startOfMonth, lte: endOfMonth },
+        status: { not: 'CANCELLED' },
+      },
       include: {
         history: {
           where: { toStage: { in: ['WASHING', 'FINISHED'] } },
@@ -117,9 +120,11 @@ export async function getDailyReport(req: Request, res: Response): Promise<void>
       orderBy: { createdAt: 'asc' },
     });
 
+    const activeOrders = orders.filter((o) => o.status !== 'CANCELLED');
+
     res.json({
       date: monthParam,
-      totalOrders: orders.length,
+      totalOrders: activeOrders.length,
       orders,
     });
   } catch (error) {

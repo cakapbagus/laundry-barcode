@@ -47,7 +47,8 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     const estimatedCompletion = new Date();
     estimatedCompletion.setDate(estimatedCompletion.getDate() + completionDays);
 
-    const trackUrl = `http://localhost:5173/track?order=${orderCode}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const trackUrl = `${frontendUrl}/track?order=${orderCode}`;
     const qrCode = await QRCode.toDataURL(trackUrl, { width: 300 });
 
     const order = await prisma.order.create({

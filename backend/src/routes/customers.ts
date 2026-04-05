@@ -3,6 +3,8 @@ import { authenticate, requireRole } from '../middleware/auth';
 import {
   searchCustomers,
   createCustomer,
+  updateCustomer,
+  deleteCustomer,
   getCustomerByNis,
   getCustomerFilters,
   getCustomerTemplate,
@@ -41,5 +43,7 @@ router.get('/filters', getCustomerFilters);
 router.get('/by-nis/:nis', getCustomerByNis);
 router.get('/', searchCustomers);
 router.post('/', createCustomer);
+router.put('/:id', requireRole('MANAGER'), updateCustomer);
+router.delete('/:id', requireRole('MANAGER'), deleteCustomer);
 
 export default router;

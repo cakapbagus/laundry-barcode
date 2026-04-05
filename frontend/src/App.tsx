@@ -11,6 +11,7 @@ import UsersPage from './pages/UsersPage';
 import PublicTrackPage from './pages/PublicTrackPage';
 import OrdersPage from './pages/OrdersPage';
 import MusyrifPage from './pages/MusyrifPage';
+import SantriPage from './pages/SantriPage';
 
 function ProtectedRoute({
   children,
@@ -117,6 +118,14 @@ function App() {
           element={
             <ProtectedRoute roles={['MUSYRIF']}>
               <MusyrifPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/santri"
+          element={
+            <ProtectedRoute roles={['MANAGER']}>
+              <SantriPage />
             </ProtectedRoute>
           }
         />

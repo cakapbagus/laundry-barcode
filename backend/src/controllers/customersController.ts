@@ -158,6 +158,57 @@ export const uploadMiddleware = multer({
   },
 }).single('file');
 
+export async function updateCustomer(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const { nis, nama, kamar, kelas } = req.body;
+
+    if (!nis || !nis.trim()) { res.status(400).json({ error: 'NIS wajib diisi' }); return; }
+    if (!nama || !nama.trim()) { res.status(400).json({ error: 'Nama santri wajib diisi' }); return; }
+    if (!kamar || !kamar.trim()) { res.status(400).json({ error: 'Kamar wajib diisi' }); return; }
+    if (!kelas || !kelas.trim()) { res.status(400).json({ error: 'Kelas wajib diisi' }); return; }
+
+    const existing = await prisma.customer.findUnique({ where: { id } });
+    if (!existing) { res.status(404).json({ error: 'Santri tidak ditemukan' }); return; }
+
+    // Check NIS conflict (if NIS changed)
+    if (nis.trim() !== existing.nis) {
+      const conflict = await prisma.customer.findUnique({ where: { nis: nis.trim() } });
+      if (conflict) {
+        res.status(409).json({ error: `NIS ${nis} sudah terdaftar atas nama ${conflict.nama}`, code: 'NIS_ALREADY_EXISTS' });
+        return;
+      }
+    }
+
+    const customer = await prisma.customer.update({
+      where: { id },
+      data: { nis: nis.trim(), nama: nama.trim(), kamar: kamar.trim(), kelas: kelas.trim() },
+    });
+
+    res.json(customer);
+  } catch (error) {
+    res.status(500).json({ error: 'Terjadi kesalahan server' });
+  }
+}
+
+export async function deleteCustomer(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    const existing = await prisma.customer.findUnique({ where: { id } });
+    if (!existing) { res.status(404).json({ error: 'Santri tidak ditemukan' }); return; }
+
+    await prisma.customer.delete({ where: { id } });
+    res.json({ message: 'Santri berhasil dihapus' });
+  } catch (error: any) {
+    if (error?.code === 'P2003') {
+      res.status(409).json({ error: 'Santri tidak dapat dihapus karena memiliki data order yang terkait' });
+      return;
+    }
+    res.status(500).json({ error: 'Terjadi kesalahan server' });
+  }
+}
+
 export async function bulkUploadCustomers(req: Request, res: Response): Promise<void> {
   try {
     if (!req.file) {

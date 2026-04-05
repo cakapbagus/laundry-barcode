@@ -38,14 +38,6 @@ export default function SettingsPage() {
   const [deletingMachine, setDeletingMachine] = useState<Machine | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  // Bulk upload state
-  const [bulkFile, setBulkFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState<{
-    totalRows: number; inserted: number; skippedDuplicate: number; skippedInvalid: number;
-    errors: { row: number; nis: string; reason: string }[];
-  } | null>(null);
-
   async function loadMachines() {
     try {
       const res = await apiClient.get('/machines');
@@ -138,45 +130,6 @@ export default function SettingsPage() {
       // silent
     } finally {
       setConfirmingDelete(false);
-    }
-  }
-
-  async function handleDownloadTemplate() {
-    const res = await apiClient.get('/customer/template', { responseType: 'blob' });
-    const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'template_data_santri.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function handleDownloadTemplateXlsx() {
-    const res = await apiClient.get('/customer/template/xls', { responseType: 'blob' });
-    const url = URL.createObjectURL(new Blob([res.data], { type: 'application/vnd.ms-excel' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'template_data_santri.xls';
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function handleBulkUpload() {
-    if (!bulkFile) return;
-    setUploading(true);
-    setUploadResult(null);
-    try {
-      const form = new FormData();
-      form.append('file', bulkFile);
-      const res = await apiClient.post('/customer/bulk-upload', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setUploadResult(res.data.data);
-      setBulkFile(null);
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Gagal upload file');
-    } finally {
-      setUploading(false);
     }
   }
 
@@ -320,13 +273,13 @@ export default function SettingsPage() {
                 {machines.map((m) => (
                   <li
                     key={m.id}
-                    className="flex items-center gap-2 px-2.5 py-2 mobile-landscape:py-1.5 rounded-lg border border-gray-100 bg-gray-50"
+                    className={`flex items-center gap-2 px-2.5 py-2 mobile-landscape:py-1.5 rounded-lg border border-gray-100 bg-gray-50 ${m.active ? '' : 'opacity-60'}`}
                   >
                     <span className={`w-6 h-6 flex items-center justify-center rounded-md text-xs font-bold flex-shrink-0 ${CATEGORY_COLOR[m.category] || 'bg-gray-100 text-gray-600'}`}>
                       {CATEGORY_LABEL[m.category] || m.category}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-xs sm:text-sm font-medium text-gray-800 leading-tight truncate ${m.active ? '' : 'opacity-60'}`}>
+                      <p className="text-xs sm:text-sm font-medium text-gray-800 leading-tight truncate">
                         {m.name}
                       </p>
                       <p className="text-[10px] sm:text-xs text-gray-400 font-mono">{m.code}</p>
@@ -353,76 +306,6 @@ export default function SettingsPage() {
               </ul>
             )}
           </div>
-        </div>
-
-        {/* Bulk Upload Santri */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 sm:p-6 mt-3 lg:mt-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Import Data Santri (Bulk Upload)</h2>
-          <p className="text-xs text-gray-500 mb-3">
-            Upload file CSV atau Excel (XLS/XLSX) berisi data santri. Kolom wajib: <span className="font-mono">nis, nama, kamar, kelas</span>.
-            NIS yang sudah terdaftar akan dilewati.
-          </p>
-          <div className="flex flex-wrap gap-2 mb-3">
-            <button
-              onClick={handleDownloadTemplate}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Unduh Template CSV
-            </button>
-            <button
-              onClick={handleDownloadTemplateXlsx}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 rounded-lg transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Unduh Template XLS
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex-1 min-w-[200px]">
-              <input
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
-                onChange={(e) => { setBulkFile(e.target.files?.[0] || null); setUploadResult(null); }}
-              />
-            </label>
-            <button
-              onClick={handleBulkUpload}
-              disabled={!bulkFile || uploading}
-              className="btn-primary text-xs py-1.5 px-4 disabled:opacity-50"
-            >
-              {uploading ? 'Mengupload...' : 'Upload'}
-            </button>
-          </div>
-
-          {uploadResult && (
-            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg text-xs">
-              <p className="font-semibold text-green-800 mb-1">Upload selesai</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div><span className="text-gray-500">Total baris:</span> <span className="font-medium">{uploadResult.totalRows}</span></div>
-                <div><span className="text-gray-500">Tersimpan:</span> <span className="font-medium text-green-700">{uploadResult.inserted}</span></div>
-                <div><span className="text-gray-500">Duplikat:</span> <span className="font-medium text-yellow-700">{uploadResult.skippedDuplicate}</span></div>
-                <div><span className="text-gray-500">Tidak valid:</span> <span className="font-medium text-red-700">{uploadResult.skippedInvalid}</span></div>
-              </div>
-              {uploadResult.errors.length > 0 && (
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-gray-500 hover:text-gray-700">
-                    Lihat {uploadResult.errors.length} detail error
-                  </summary>
-                  <ul className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">
-                    {uploadResult.errors.map((e, i) => (
-                      <li key={i} className="text-red-600">Baris {e.row} (NIS: {e.nis || '-'}): {e.reason}</li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-            </div>
-          )}
         </div>
 
       </div>

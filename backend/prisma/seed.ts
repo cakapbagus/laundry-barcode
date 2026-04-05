@@ -48,9 +48,9 @@ async function main() {
   });
 
   await prisma.setting.upsert({
-    where: { key: 'STUCK_THRESHOLD_HOURS' },
+    where: { key: 'STUCK_HOURS' },
     update: {},
-    create: { key: 'STUCK_THRESHOLD_HOURS', value: '2' },
+    create: { key: 'STUCK_HOURS', value: '2' },
   });
 
   await prisma.setting.upsert({

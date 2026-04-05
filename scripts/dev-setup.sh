@@ -47,7 +47,9 @@ if [ ! -f .env ]; then
   cat > .env <<'EOF'
 JWT_SECRET=dev-secret-ganti-di-production-dengan-string-acak-panjang
 PORT=3001
-DATABASE_URL=file:./laundry.db
+DATABASE_URL=file:./dev.db
+FRONTEND_URL=http://localhost:5173
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 EOF
   log ".env dibuat"
 else
@@ -97,8 +99,8 @@ echo "  Terminal 2 (Frontend):"
 echo "    cd frontend && npm run dev"
 echo "    → http://localhost:5173"
 echo ""
-echo "Akun default:"
-echo "  Admin (MANAGER) : Admin / admin123"
-echo "  Siti  (KASIR)   : Siti  / siti123"
-echo "  Joko  (OPERATOR): Joko  / joko123"
+echo "Akun default (dari seed):"
+echo "  manager (MANAGER) : manager / manager123"
+echo ""
+echo "Buat akun KASIR/OPERATOR via halaman /users setelah login."
 echo ""
