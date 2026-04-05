@@ -60,6 +60,8 @@ export default function IntakePage() {
   const [cameraError, setCameraError] = useState('');
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownRefDesktop = useRef<HTMLDivElement>(null);
+  const skipSearchRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -68,6 +70,10 @@ export default function IntakePage() {
 
   // Search customers
   useEffect(() => {
+    if (skipSearchRef.current) {
+      skipSearchRef.current = false;
+      return;
+    }
     if (customerQuery.length < 1) {
       setCustomers([]);
       setShowDropdown(false);
@@ -86,7 +92,10 @@ export default function IntakePage() {
   // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideMobile = dropdownRef.current?.contains(target);
+      const insideDesktop = dropdownRefDesktop.current?.contains(target);
+      if (!insideMobile && !insideDesktop) {
         setShowDropdown(false);
       }
     }
@@ -108,6 +117,7 @@ export default function IntakePage() {
   }, []);
 
   function selectCustomer(c: Customer) {
+    skipSearchRef.current = true;
     setSelectedCustomer(c);
     setCustomerQuery(c.nama);
     setShowDropdown(false);
@@ -586,7 +596,7 @@ export default function IntakePage() {
                       </button>
                     </div>
                     {showDropdown && customers.length > 0 && (
-                      <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto" onMouseDown={e => e.preventDefault()}>
                         {customers.map((c) => (
                           <button key={c.id} type="button" onClick={() => selectCustomer(c)}
                             className="w-full text-left px-4 py-2.5 hover:bg-indigo-50 text-sm transition-colors">
@@ -710,7 +720,7 @@ export default function IntakePage() {
                 Nama Santri <span className="text-red-500">*</span>
               </label>
 
-              <div ref={dropdownRef} className="relative">
+              <div ref={dropdownRefDesktop} className="relative">
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <input
@@ -757,7 +767,7 @@ export default function IntakePage() {
                 </div>
 
                 {showDropdown && customers.length > 0 && (
-                  <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto" onMouseDown={e => e.preventDefault()}>
                     {customers.map((c) => (
                       <button
                         key={c.id}

@@ -4,7 +4,6 @@ import Navbar from '../components/Navbar';
 import { useAppConfigStore } from '../stores/appConfigStore';
 
 const STATUS_LABEL: Record<string, string> = {
-  CANCELLED: 'Dibatalkan',
   INTAKE: 'Diterima',
   WASHING: 'Dicuci',
   DRYING: 'Dikeringkan',
@@ -15,7 +14,6 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
-  CANCELLED: 'bg-red-100 text-red-700',
   INTAKE: 'bg-blue-100 text-blue-700',
   WASHING: 'bg-cyan-100 text-cyan-700',
   DRYING: 'bg-yellow-100 text-yellow-700',
@@ -85,8 +83,8 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [infoOrder, setInfoOrder] = useState<Order | null>(null);
-  const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
-  const [cancelling, setCancelling] = useState(false);
+  const [deleteOrder, setDeleteOrder] = useState<Order | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Pull-to-refresh state
   const [pullDelta, setPullDelta] = useState(0);
@@ -117,17 +115,17 @@ export default function OrdersPage() {
 
   useEffect(() => { setPage(1); }, [search, statusFilter]);
 
-  async function handleConfirmCancel() {
-    if (!cancelOrder) return;
-    setCancelling(true);
+  async function handleConfirmDelete() {
+    if (!deleteOrder) return;
+    setDeleting(true);
     try {
-      await apiClient.patch(`/orders/${cancelOrder.id}/cancel`);
-      setCancelOrder(null);
+      await apiClient.delete(`/orders/${deleteOrder.id}`);
+      setDeleteOrder(null);
       fetchOrders();
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Gagal membatalkan order');
+      alert(err.response?.data?.error || 'Gagal menghapus order');
     } finally {
-      setCancelling(false);
+      setDeleting(false);
     }
   }
 
@@ -361,12 +359,12 @@ export default function OrdersPage() {
                   )}
                   {order.status === 'INTAKE' && (
                     <button
-                      onClick={() => setCancelOrder(order)}
-                      title="Batalkan order"
+                      onClick={() => setDeleteOrder(order)}
+                      title="Hapus order"
                       className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
                   )}
@@ -439,14 +437,14 @@ export default function OrdersPage() {
                         )}
                         {order.status === 'INTAKE' && (
                           <button
-                            onClick={() => setCancelOrder(order)}
-                            title="Batalkan order"
+                            onClick={() => setDeleteOrder(order)}
+                            title="Hapus order"
                             className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
-                            Batal
+                            Hapus
                           </button>
                         )}
                         <button
@@ -495,28 +493,28 @@ export default function OrdersPage() {
 
       {infoOrder && <InfoModal order={infoOrder} onClose={() => setInfoOrder(null)} />}
 
-      {/* Confirm Cancel Modal */}
-      {cancelOrder && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setCancelOrder(null)}>
+      {/* Confirm Delete Modal */}
+      {deleteOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDeleteOrder(null)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
                 <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
               </div>
-              <h3 className="text-base font-semibold text-gray-900">Batalkan Order?</h3>
+              <h3 className="text-base font-semibold text-gray-900">Hapus Order?</h3>
             </div>
-            <p className="text-sm text-gray-500 mb-1">Anda akan membatalkan order:</p>
-            <p className="font-mono font-bold text-indigo-700 text-sm">{cancelOrder.orderCode}</p>
-            <p className="text-sm text-gray-800">{cancelOrder.customer?.nama}</p>
-            <p className="text-xs text-red-500 mt-3 mb-5">Order yang dibatalkan tidak bisa dikembalikan ke status sebelumnya.</p>
+            <p className="text-sm text-gray-500 mb-1">Anda akan menghapus order:</p>
+            <p className="font-mono font-bold text-indigo-700 text-sm">{deleteOrder.orderCode}</p>
+            <p className="text-sm text-gray-800">{deleteOrder.customer?.nama}</p>
+            <p className="text-xs text-red-500 mt-3 mb-5">Order yang dihapus tidak bisa dipulihkan kembali.</p>
             <div className="flex gap-3">
-              <button onClick={() => setCancelOrder(null)} disabled={cancelling} className="flex-1 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+              <button onClick={() => setDeleteOrder(null)} disabled={deleting} className="flex-1 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
                 Kembali
               </button>
-              <button onClick={handleConfirmCancel} disabled={cancelling} className="flex-1 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
-                {cancelling ? 'Membatalkan...' : 'Ya, Batalkan'}
+              <button onClick={handleConfirmDelete} disabled={deleting} className="flex-1 py-2 rounded-lg text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
+                {deleting ? 'Menghapus...' : 'Ya, Hapus'}
               </button>
             </div>
           </div>

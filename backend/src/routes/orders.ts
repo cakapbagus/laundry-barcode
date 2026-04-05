@@ -4,7 +4,7 @@ import {
   createOrder,
   listOrders,
   getOrder,
-  cancelOrder,
+  deleteOrder,
   completeOrder,
 } from '../controllers/ordersController';
 
@@ -15,7 +15,7 @@ router.use(authenticate);
 router.post('/', requireRole('KASIR', 'MANAGER'), createOrder);
 router.get('/', listOrders);
 router.get('/:id', getOrder);
-router.patch('/:id/cancel', requireRole('KASIR', 'MANAGER', 'OPERATOR'), cancelOrder);
+router.delete('/:id', requireRole('KASIR', 'MANAGER', 'OPERATOR'), deleteOrder);
 router.patch('/:id/complete', requireRole('KASIR', 'MANAGER', 'OPERATOR'), completeOrder);
 
 export default router;

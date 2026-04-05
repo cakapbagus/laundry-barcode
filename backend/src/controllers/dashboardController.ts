@@ -13,7 +13,6 @@ export async function getSummary(req: Request, res: Response): Promise<void> {
     const monthOrders = await prisma.order.findMany({
       where: {
         createdAt: { gte: startOfMonth, lte: endOfMonth },
-        status: { not: 'CANCELLED' },
       },
       include: {
         history: {
@@ -64,9 +63,9 @@ export async function getOrdersByStatus(req: Request, res: Response): Promise<vo
 
     const where: any = {
       OR: [
-        { status: { notIn: ['FINISHED', 'PICKED_UP', 'CANCELLED'] } },
+        { status: { notIn: ['FINISHED', 'PICKED_UP'] } },
         {
-          status: { in: ['FINISHED', 'PICKED_UP', 'CANCELLED'] },
+          status: { in: ['FINISHED', 'PICKED_UP'] },
           createdAt: { gte: startOfMonth, lte: endOfMonth },
         },
       ],
@@ -87,7 +86,7 @@ export async function getOrdersByStatus(req: Request, res: Response): Promise<vo
       orderBy: { updatedAt: 'desc' },
     });
 
-    const stages = ['CANCELLED', 'INTAKE', 'WASHING', 'DRYING', 'IRONING', 'PACKING', 'FINISHED', 'PICKED_UP'];
+    const stages = ['INTAKE', 'WASHING', 'DRYING', 'IRONING', 'PACKING', 'FINISHED', 'PICKED_UP'];
     const grouped: Record<string, any[]> = {};
     for (const stage of stages) {
       grouped[stage] = orders.filter((o) => o.status === stage);
@@ -120,11 +119,9 @@ export async function getDailyReport(req: Request, res: Response): Promise<void>
       orderBy: { createdAt: 'asc' },
     });
 
-    const activeOrders = orders.filter((o) => o.status !== 'CANCELLED');
-
     res.json({
       date: monthParam,
-      totalOrders: activeOrders.length,
+      totalOrders: orders.length,
       orders,
     });
   } catch (error) {

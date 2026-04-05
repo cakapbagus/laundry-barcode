@@ -44,9 +44,8 @@ interface Setting {
   STUCK_HOURS: string;
 }
 
-const STAGES = ['CANCELLED', 'INTAKE', 'WASHING', 'DRYING', 'IRONING', 'PACKING', 'FINISHED', 'PICKED_UP'];
+const STAGES = ['INTAKE', 'WASHING', 'DRYING', 'IRONING', 'PACKING', 'FINISHED', 'PICKED_UP'];
 const STAGE_LABELS: Record<string, string> = {
-  CANCELLED: 'Dibatalkan',
   INTAKE: 'Penerimaan',
   WASHING: 'Pencucian',
   DRYING: 'Pengeringan',
@@ -56,7 +55,6 @@ const STAGE_LABELS: Record<string, string> = {
   PICKED_UP: 'Diambil',
 };
 const STAGE_COLORS: Record<string, string> = {
-  CANCELLED: 'bg-red-50 border-red-200',
   INTAKE: 'bg-gray-100 border-gray-200',
   WASHING: 'bg-blue-50 border-blue-200',
   DRYING: 'bg-cyan-50 border-cyan-200',
@@ -66,7 +64,6 @@ const STAGE_COLORS: Record<string, string> = {
   PICKED_UP: 'bg-slate-50 border-slate-200',
 };
 const STAGE_HEADER_COLORS: Record<string, string> = {
-  CANCELLED: 'text-red-700',
   INTAKE: 'text-gray-700',
   WASHING: 'text-blue-700',
   DRYING: 'text-cyan-700',
@@ -76,7 +73,6 @@ const STAGE_HEADER_COLORS: Record<string, string> = {
   PICKED_UP: 'text-slate-600',
 };
 const STAGE_PILL_COLORS: Record<string, string> = {
-  CANCELLED: 'bg-red-100 text-red-700',
   INTAKE: 'bg-gray-200 text-gray-700',
   WASHING: 'bg-blue-100 text-blue-700',
   DRYING: 'bg-cyan-100 text-cyan-700',
@@ -102,7 +98,7 @@ function getTimeInStage(order: Order): number {
 
 function OrderCard({ order, onClick, stuckThresholdSec }: { order: Order; onClick: () => void; stuckThresholdSec: number }) {
   const timeInStage = getTimeInStage(order);
-  const isStuck = timeInStage > stuckThresholdSec && order.status !== 'FINISHED' && order.status !== 'PICKED_UP' && order.status !== 'CANCELLED';
+  const isStuck = timeInStage > stuckThresholdSec && order.status !== 'FINISHED' && order.status !== 'PICKED_UP';
 
   return (
     <div
@@ -130,7 +126,7 @@ function OrderCard({ order, onClick, stuckThresholdSec }: { order: Order; onClic
 function OrderDetailModal({ order, onClose, stuckThresholdSec }: { order: Order; onClose: () => void; stuckThresholdSec: number }) {
   if (!order) return null;
   const timeInStage = getTimeInStage(order);
-  const isStuck = timeInStage > stuckThresholdSec && order.status !== 'FINISHED' && order.status !== 'PICKED_UP' && order.status !== 'CANCELLED';
+  const isStuck = timeInStage > stuckThresholdSec && order.status !== 'FINISHED' && order.status !== 'PICKED_UP';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -213,7 +209,7 @@ export default function DashboardPage() {
   const [settings, setSettings] = useState<Setting>({ STUCK_HOURS: '2' });
   const [visibleStages, setVisibleStages] = useState<Set<string>>(new Set(STAGES));
   // Mobile: which stages are expanded (default: all non-empty expanded)
-  const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set(['CANCELLED', 'FINISHED', 'PICKED_UP']));
+  const [collapsedStages, setCollapsedStages] = useState<Set<string>>(new Set(['FINISHED', 'PICKED_UP']));
   const [filterKamar, setFilterKamar] = useState('');
   const [filterKelas, setFilterKelas] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -254,7 +250,7 @@ export default function DashboardPage() {
     socket.on('order:created', loadDashboard);
     socket.on('order:stage_updated', loadDashboard);
     socket.on('order:completed', loadDashboard);
-    socket.on('order:cancelled', loadDashboard);
+    socket.on('order:deleted', loadDashboard);
     return () => { socket.disconnect(); };
   }, [loadDashboard]);
 

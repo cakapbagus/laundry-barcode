@@ -187,7 +187,7 @@ export async function getOrder(req: Request, res: Response): Promise<void> {
   }
 }
 
-export async function cancelOrder(req: Request, res: Response): Promise<void> {
+export async function deleteOrder(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
 
@@ -198,24 +198,25 @@ export async function cancelOrder(req: Request, res: Response): Promise<void> {
     }
 
     if (order.status !== 'INTAKE') {
-      res.status(400).json({ error: 'Order hanya bisa dibatalkan saat masih di status Penerimaan' });
+      res.status(400).json({ error: 'Order hanya bisa dihapus saat masih di status Penerimaan' });
       return;
     }
 
-    const updated = await prisma.order.update({
-      where: { id },
-      data: { status: 'CANCELLED' },
-    });
+    await prisma.$transaction([
+      prisma.scanLog.deleteMany({ where: { orderId: id } }),
+      prisma.stageHistory.deleteMany({ where: { orderId: id } }),
+      prisma.order.delete({ where: { id } }),
+    ]);
 
     try {
       const io = getIo();
-      io.emit('order:cancelled', updated);
+      io.emit('order:deleted', { id });
       io.emit('dashboard:refresh');
     } catch {}
 
-    res.json(updated);
+    res.status(204).end();
   } catch (error) {
-    console.error('Cancel order error:', error);
+    console.error('Delete order error:', error);
     res.status(500).json({ error: 'Terjadi kesalahan server' });
   }
 }

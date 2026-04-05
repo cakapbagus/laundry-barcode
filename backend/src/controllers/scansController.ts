@@ -99,30 +99,6 @@ export async function stageTransition(req: Request, res: Response): Promise<void
       }
     }
 
-    // Check duplicate scan within 30 seconds
-    const thirtySecAgo = new Date(Date.now() - 30 * 1000);
-    const recentScan = await prisma.scanLog.findFirst({
-      where: {
-        orderId: order.id,
-        status: 'success',
-        scannedAt: { gte: thirtySecAgo },
-      },
-    });
-
-    if (recentScan) {
-      await prisma.scanLog.create({
-        data: {
-          orderId: order.id,
-          operatorId: req.user!.id,
-          scanType: 'STAGE_TRANSITION',
-          status: 'duplicate',
-          errorMsg: 'Scan duplikat dalam 30 detik terakhir',
-        },
-      });
-      res.status(409).json({ error: 'Scan duplikat: order ini baru saja di-scan (dalam 30 detik)' });
-      return;
-    }
-
     // Close previous stage history
     const lastHistory = order.history[0];
     if (lastHistory && !lastHistory.endedAt) {
@@ -214,16 +190,6 @@ export async function integrityCheck(req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Check duplicate scan within 30 seconds
-    const thirtySecAgo = new Date(Date.now() - 30 * 1000);
-    const recentScan = await prisma.scanLog.findFirst({
-      where: {
-        orderId: order.id,
-        status: 'success',
-        scannedAt: { gte: thirtySecAgo },
-      },
-    });
-
     const nextStage = getNextStage(order.status);
 
     res.json({
@@ -236,10 +202,8 @@ export async function integrityCheck(req: Request, res: Response): Promise<void>
         nextStage,
         estimatedCompletion: order.estimatedCompletion,
       },
-      isDuplicate: !!recentScan,
-      duplicateWarning: recentScan
-        ? 'Order ini baru saja di-scan dalam 30 detik terakhir'
-        : null,
+      isDuplicate: false,
+      duplicateWarning: null,
     });
   } catch (error) {
     console.error('Integrity check error:', error);
