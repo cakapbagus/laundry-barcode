@@ -232,8 +232,9 @@ sudo -u "$APP_USER" pm2 start "$APP_DIR/ecosystem.config.js"
 sudo -u "$APP_USER" pm2 save
 
 # Daftarkan PM2 agar auto-start saat reboot
+# (script berjalan sebagai root → pm2 startup langsung mengeksekusi, tidak perlu pipe)
 env PATH="$PATH:/usr/local/bin" \
-  pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER" | tail -1 | bash
+  pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER" || true
 log "PM2 dikonfigurasi (auto-start saat boot)"
 
 # =============================================================================
