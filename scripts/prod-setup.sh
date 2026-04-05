@@ -61,7 +61,7 @@ if [ -z "$MANAGER_NAME" ]; then
   MANAGER_NAME="Admin"
   MANAGER_PASSWORD="admin123"
 else
-  MANAGER_PASSWORD=$(openssl rand -base64 12 | tr -dc 'A-Za-z0-9' | head -c 6)
+  MANAGER_PASSWORD=$(openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | head -c 12)
 fi
 
 # =============================================================================
@@ -144,11 +144,18 @@ if [ ! -f .env ]; then
     ORIGINS="http://$SERVER_IP"
   fi
 
+  if [ -n "$APP_DOMAIN" ]; then
+    FRONTEND_URL_VAL="https://$APP_DOMAIN"
+  else
+    FRONTEND_URL_VAL="http://$SERVER_IP"
+  fi
+
   cat > .env <<EOF
 NODE_ENV=production
 PORT=$BACKEND_PORT
 JWT_SECRET=${JWT_SECRET:-$GENERATED_SECRET}
 DATABASE_URL=file:$APP_DIR/backend/prisma/prod.db
+FRONTEND_URL=$FRONTEND_URL_VAL
 ALLOWED_ORIGINS=$ORIGINS
 EOF
   log ".env production dibuat (JWT_SECRET di-generate otomatis)"
@@ -225,7 +232,8 @@ sudo -u "$APP_USER" pm2 start "$APP_DIR/ecosystem.config.js"
 sudo -u "$APP_USER" pm2 save
 
 # Daftarkan PM2 agar auto-start saat reboot
-pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER"
+env PATH="$PATH:/usr/local/bin" \
+  pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER" | tail -1 | bash
 log "PM2 dikonfigurasi (auto-start saat boot)"
 
 # =============================================================================

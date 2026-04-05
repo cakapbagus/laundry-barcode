@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware';
 export interface AuthUser {
   id: string;
   name: string;
-  role: 'KASIR' | 'OPERATOR' | 'MANAGER';
+  role: 'KASIR' | 'OPERATOR' | 'MANAGER' | 'MUSYRIF';
 }
 
 interface AuthState {
