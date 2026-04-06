@@ -21,6 +21,40 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Check subscription status
+    if (!customer.aktif) {
+      res.status(403).json({
+        error: `${customer.nama} (NIS: ${customer.nis}) tidak aktif berlangganan. Hubungi manager untuk mengaktifkan.`,
+        code: 'CUSTOMER_INACTIVE',
+      });
+      return;
+    }
+
+    // Check weekly wash limit
+    const weeklyLimitSetting = await prisma.setting.findUnique({ where: { key: 'WEEKLY_WASH_LIMIT' } });
+    const weeklyLimit = parseInt(weeklyLimitSetting?.value || '2');
+
+    // Determine current week boundaries (Mon 00:00 - Sun 23:59)
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
+    const diffToMon = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() + diffToMon);
+    weekStart.setHours(0, 0, 0, 0);
+
+    // Reset weekly count if it's a new week
+    const resetAt = customer.weeklyWashResetAt;
+    const needsReset = !resetAt || resetAt < weekStart;
+    const currentCount = needsReset ? 0 : customer.weeklyWashCount;
+
+    if (currentCount >= weeklyLimit) {
+      res.status(429).json({
+        error: `${customer.nama} sudah mencapai batas cuci pekan ini (${currentCount}/${weeklyLimit} kali). Limit direset setiap Senin.`,
+        code: 'WEEKLY_LIMIT_EXCEEDED',
+      });
+      return;
+    }
+
     // Duplicate prevention: same customer within 30 min today
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
     const existing = await prisma.order.findFirst({
@@ -82,6 +116,15 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
         operatorId: req.user!.id,
         scanType: 'INTAKE_START',
         status: 'success',
+      },
+    });
+
+    // Update weekly wash count
+    await prisma.customer.update({
+      where: { id: customer.id },
+      data: {
+        weeklyWashCount: needsReset ? 1 : currentCount + 1,
+        weeklyWashResetAt: needsReset ? weekStart : customer.weeklyWashResetAt,
       },
     });
 

@@ -333,9 +333,10 @@ export default function OrdersPage() {
             )}
             {orders.map((order) => (
               <div key={order.id} className="card py-3 px-4 flex items-center gap-3">
-                {/* Kiri: kode + nama */}
+                {/* Kiri: kode + NIS + nama */}
                 <div className="flex-1 min-w-0">
                   <p className="font-mono font-bold text-indigo-700 text-sm leading-tight">{order.orderCode}</p>
+                  <p className="font-mono text-xs text-gray-400 leading-tight">{order.customer?.nis}</p>
                   <p className="text-gray-800 text-sm truncate">{order.customer?.nama}</p>
                 </div>
                 {/* Tengah: status */}
@@ -390,6 +391,7 @@ export default function OrdersPage() {
               <thead>
                 <tr className="border-b border-gray-100 text-left">
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Kode Order</th>
+                  <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">NIS</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Nama Santri</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Kamar / Kelas</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Status</th>
@@ -400,7 +402,7 @@ export default function OrdersPage() {
               <tbody>
                 {orders.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
                       Tidak ada order ditemukan
                     </td>
                   </tr>
@@ -408,6 +410,7 @@ export default function OrdersPage() {
                 {orders.map((order) => (
                   <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-mono font-bold text-indigo-700">{order.orderCode}</td>
+                    <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-mono text-gray-500">{order.customer?.nis}</td>
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs text-gray-800">{order.customer?.nama}</td>
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs text-gray-600">{order.customer?.kamar} / {order.customer?.kelas}</td>
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5">

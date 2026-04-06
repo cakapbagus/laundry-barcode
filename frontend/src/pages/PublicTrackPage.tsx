@@ -62,7 +62,7 @@ const STAGE_LABELS_SHORT: Record<string, string> = {
 export default function PublicTrackPage() {
   const appTitle = useAppConfigStore((s) => s.title);
   const [searchParams] = useSearchParams();
-  const [query, setQuery] = useState(searchParams.get('order') || 'LAU-');
+  const [query, setQuery] = useState(searchParams.get('order') || '');
   const [order, setOrder] = useState<OrderData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -75,15 +75,24 @@ export default function PublicTrackPage() {
     }
   }, []);
 
-  async function fetchOrder(code: string) {
+  function isNis(input: string) {
+    return /^\d+$/.test(input.trim());
+  }
+
+  async function fetchOrder(input: string) {
+    const q = input.trim();
+    if (!q) return;
     setLoading(true);
     setError('');
     setOrder(null);
     try {
-      const res = await apiClient.get(`/public/track/${encodeURIComponent(code.trim().toUpperCase())}`);
+      const url = isNis(q)
+        ? `/public/track/by-nis/${encodeURIComponent(q)}`
+        : `/public/track/${encodeURIComponent(q.toUpperCase())}`;
+      const res = await apiClient.get(url);
       setOrder(res.data);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Order tidak ditemukan. Periksa kembali kode order Anda.');
+      setError(err.response?.data?.error || 'Order tidak ditemukan. Periksa kembali kode order atau NIS Anda.');
     } finally {
       setLoading(false);
     }
@@ -119,15 +128,15 @@ export default function PublicTrackPage() {
         {/* Search Box */}
         <form onSubmit={handleSearch} className="mb-3 sm:mb-6 mobile-landscape:mb-2">
           <label className="hidden sm:block mobile-landscape:!hidden text-sm font-medium text-gray-700 mb-2">
-            Masukkan Kode Order
+            Masukkan Kode Order atau NIS Santri
           </label>
           <div className="flex gap-2">
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="input-field flex-1 font-mono uppercase"
-              placeholder="Contoh: LAU-20260101-001"
+              className="input-field flex-1 font-mono"
+              placeholder="Kode order (LAU-...) atau NIS"
               autoCapitalize="characters"
             />
             <button type="submit" disabled={loading} className="btn-primary whitespace-nowrap">

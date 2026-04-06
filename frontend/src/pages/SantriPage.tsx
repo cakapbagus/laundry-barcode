@@ -8,9 +8,10 @@ interface Customer {
   nama: string;
   kamar: string;
   kelas: string;
+  aktif: boolean;
 }
 
-const emptyForm = { nis: '', nama: '', kamar: '', kelas: '' };
+const emptyForm = { nis: '', nama: '', kamar: '', kelas: '', aktif: true };
 
 export default function SantriPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -32,7 +33,7 @@ export default function SantriPage() {
   const [bulkFile, setBulkFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{
-    totalRows: number; inserted: number; skippedDuplicate: number; skippedInvalid: number;
+    totalRows: number; inserted: number; updated: number; skippedInvalid: number;
     errors: { row: number; nis: string; reason: string }[];
   } | null>(null);
 
@@ -63,7 +64,7 @@ export default function SantriPage() {
 
   function openEdit(c: Customer) {
     setEditTarget(c);
-    setForm({ nis: c.nis, nama: c.nama, kamar: c.kamar, kelas: c.kelas });
+    setForm({ nis: c.nis, nama: c.nama, kamar: c.kamar, kelas: c.kelas, aktif: c.aktif });
     setFormError('');
     setModalMode('edit');
   }
@@ -87,6 +88,15 @@ export default function SantriPage() {
       setFormError(err?.response?.data?.error || 'Gagal menyimpan data.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleToggleAktif(c: Customer) {
+    try {
+      await apiClient.patch(`/customer/${c.id}/toggle-aktif`);
+      await fetchCustomers(search || undefined);
+    } catch (err: any) {
+      alert(err?.response?.data?.error || 'Gagal mengubah status.');
     }
   }
 
@@ -188,12 +198,13 @@ export default function SantriPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nama</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Kamar</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Kelas</th>
-                    <th className="px-4 py-3 w-20" />
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                    <th className="px-4 py-3 w-24" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {customers.map((c) => (
-                    <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${!c.aktif ? 'opacity-60' : ''}`}>
                       <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.nis}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">
                         {c.nama}
@@ -201,6 +212,20 @@ export default function SantriPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{c.kamar}</td>
                       <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{c.kelas}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => handleToggleAktif(c)}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                            c.aktif
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : 'bg-red-100 text-red-700 hover:bg-red-200'
+                          }`}
+                          title={c.aktif ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.aktif ? 'bg-green-500' : 'bg-red-500'}`} />
+                          {c.aktif ? 'Aktif' : 'Nonaktif'}
+                        </button>
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button
@@ -235,10 +260,12 @@ export default function SantriPage() {
 
         {/* Bulk Upload */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Import Data Santri (Bulk Upload)</h2>
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">Import Data Santri (Bulk Upload)</h2>
           <p className="text-xs text-gray-500 mb-3">
             Upload file CSV atau Excel (XLS/XLSX) berisi data santri. Kolom wajib:{' '}
-            <span className="font-mono">nis, nama, kamar, kelas</span>. NIS yang sudah terdaftar akan dilewati.
+            <span className="font-mono">nis, nama, kamar, kelas</span>. Kolom opsional:{' '}
+            <span className="font-mono">aktif</span> (true/false, default: true).{' '}
+            NIS yang sudah terdaftar akan <strong>diperbarui</strong> (termasuk status aktif).
           </p>
           <div className="flex flex-wrap gap-2 mb-3">
             <button
@@ -283,8 +310,8 @@ export default function SantriPage() {
               <p className="font-semibold text-green-800 mb-1">Upload selesai</p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div><span className="text-gray-500">Total baris:</span> <span className="font-medium">{uploadResult.totalRows}</span></div>
-                <div><span className="text-gray-500">Tersimpan:</span> <span className="font-medium text-green-700">{uploadResult.inserted}</span></div>
-                <div><span className="text-gray-500">Duplikat:</span> <span className="font-medium text-yellow-700">{uploadResult.skippedDuplicate}</span></div>
+                <div><span className="text-gray-500">Baru:</span> <span className="font-medium text-green-700">{uploadResult.inserted}</span></div>
+                <div><span className="text-gray-500">Diperbarui:</span> <span className="font-medium text-blue-700">{uploadResult.updated}</span></div>
                 <div><span className="text-gray-500">Tidak valid:</span> <span className="font-medium text-red-700">{uploadResult.skippedInvalid}</span></div>
               </div>
               {uploadResult.errors.length > 0 && (
@@ -325,6 +352,19 @@ export default function SantriPage() {
                   />
                 </div>
               ))}
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-700">Status Berlangganan</label>
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, aktif: !prev.aktif }))}
+                  className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${form.aktif ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                >
+                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.aktif ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+                <span className={`text-xs font-medium ${form.aktif ? 'text-green-600' : 'text-gray-400'}`}>
+                  {form.aktif ? 'Aktif Berlangganan' : 'Tidak Aktif'}
+                </span>
+              </div>
               {formError && <p className="text-xs text-red-600">{formError}</p>}
             </div>
             <div className="flex gap-3 mt-5">

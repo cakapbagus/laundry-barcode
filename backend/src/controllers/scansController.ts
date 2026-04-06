@@ -177,13 +177,35 @@ export async function integrityCheck(req: Request, res: Response): Promise<void>
       return;
     }
 
-    const order = await prisma.order.findUnique({
-      where: { orderCode },
-      include: {
-        customer: true,
-        history: { orderBy: { startedAt: 'desc' }, take: 1 },
-      },
-    });
+    let order;
+
+    // Jika input berupa angka saja → cari berdasarkan NIS
+    if (/^\d+$/.test(orderCode.trim())) {
+      const nis = orderCode.trim();
+      const customer = await prisma.customer.findUnique({ where: { nis } });
+      if (!customer) {
+        res.json({ valid: false, error: `Santri dengan NIS ${nis} tidak ditemukan` });
+        return;
+      }
+      // Ambil order aktif (non-PICKED_UP) terbaru
+      order = await prisma.order.findFirst({
+        where: { customerId: customer.id, status: { not: 'PICKED_UP' } },
+        include: { customer: true, history: { orderBy: { startedAt: 'desc' }, take: 1 } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!order) {
+        res.json({ valid: false, error: `Tidak ada order aktif untuk santri ${customer.nama} (NIS: ${nis})` });
+        return;
+      }
+    } else {
+      order = await prisma.order.findUnique({
+        where: { orderCode },
+        include: {
+          customer: true,
+          history: { orderBy: { startedAt: 'desc' }, take: 1 },
+        },
+      });
+    }
 
     if (!order) {
       res.json({ valid: false, error: 'Order tidak ditemukan' });

@@ -27,6 +27,7 @@ export default function SettingsPage() {
     PAPER_WIDTH: '80',
     APP_TITLE: 'Laundry Pesantren',
     APP_SLOGAN: 'Sistem Pelacak Cucian',
+    WEEKLY_WASH_LIMIT: '2',
   });
   const loadConfig = useAppConfigStore((s) => s.loadConfig);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -77,6 +78,7 @@ export default function SettingsPage() {
         apiClient.put('/settings/PAPER_WIDTH', { value: settings.PAPER_WIDTH }),
         apiClient.put('/settings/APP_TITLE', { value: settings.APP_TITLE }),
         apiClient.put('/settings/APP_SLOGAN', { value: settings.APP_SLOGAN }),
+        apiClient.put('/settings/WEEKLY_WASH_LIMIT', { value: settings.WEEKLY_WASH_LIMIT }),
       ]);
       setSavedSettings(true);
       setTimeout(() => setSavedSettings(false), 1500);
@@ -197,6 +199,21 @@ export default function SettingsPage() {
                   placeholder="2"
                   value={settings.STUCK_HOURS}
                   onChange={(e) => setSettings(prev => ({ ...prev, STUCK_HOURS: e.target.value }))}
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-gray-700 whitespace-nowrap w-28 mobile-landscape:w-24 flex-shrink-0">
+                  Limit Cuci/Pekan
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="14"
+                  className="input-field py-1.5 mobile-landscape:py-1 text-sm flex-1"
+                  placeholder="2"
+                  value={settings.WEEKLY_WASH_LIMIT}
+                  onChange={(e) => setSettings(prev => ({ ...prev, WEEKLY_WASH_LIMIT: e.target.value }))}
                 />
               </div>
 

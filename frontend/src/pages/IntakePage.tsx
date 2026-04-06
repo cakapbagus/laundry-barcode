@@ -11,6 +11,8 @@ interface Customer {
   nama: string;
   kamar: string;
   kelas: string;
+  aktif: boolean;
+  weeklyWashCount: number;
 }
 
 interface OrderResult {
@@ -614,17 +616,20 @@ export default function IntakePage() {
                     )}
                   </div>
                   {selectedCustomer && (
-                    <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
-                      <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <div className={`mt-2 flex items-center gap-2 px-3 py-2 rounded-lg border ${selectedCustomer.aktif ? 'bg-indigo-50 border-indigo-200' : 'bg-red-50 border-red-200'}`}>
+                      <svg className={`w-4 h-4 flex-shrink-0 ${selectedCustomer.aktif ? 'text-indigo-500' : 'text-red-500'}`} fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
                       </svg>
                       <div className="flex-1 min-w-0">
-                        <span className="text-sm text-indigo-800 font-medium">{selectedCustomer.nama}</span>
-                        <span className="text-xs text-indigo-500 ml-2">NIS: {selectedCustomer.nis}</span>
-                        <span className="text-xs text-indigo-400 ml-1">· {selectedCustomer.kamar} · {selectedCustomer.kelas}</span>
+                        <span className={`text-sm font-medium ${selectedCustomer.aktif ? 'text-indigo-800' : 'text-red-800'}`}>{selectedCustomer.nama}</span>
+                        <span className={`text-xs ml-2 ${selectedCustomer.aktif ? 'text-indigo-500' : 'text-red-500'}`}>NIS: {selectedCustomer.nis}</span>
+                        <span className={`text-xs ml-1 ${selectedCustomer.aktif ? 'text-indigo-400' : 'text-red-400'}`}>· {selectedCustomer.kamar} · {selectedCustomer.kelas}</span>
+                        {!selectedCustomer.aktif && (
+                          <span className="block text-xs text-red-600 font-medium mt-0.5">Tidak aktif berlangganan — tidak dapat membuat order</span>
+                        )}
                       </div>
                       <button type="button" onClick={() => { setSelectedCustomer(null); setCustomerQuery(''); }}
-                        className="ml-auto text-indigo-400 hover:text-indigo-600">
+                        className={`ml-auto ${selectedCustomer.aktif ? 'text-indigo-400 hover:text-indigo-600' : 'text-red-400 hover:text-red-600'}`}>
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -640,8 +645,8 @@ export default function IntakePage() {
                     value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </div>
                 {selectedCustomer && (
-                  <button type="submit" disabled={loading}
-                    className="btn-primary w-full py-3 flex items-center justify-center gap-2">
+                  <button type="submit" disabled={loading || !selectedCustomer.aktif}
+                    className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     {loading ? (
                       <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -792,19 +797,22 @@ export default function IntakePage() {
 
               {/* Selected customer badge */}
               {selectedCustomer && (
-                <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-lg">
-                  <svg className="w-4 h-4 text-indigo-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <div className={`mt-2 flex items-center gap-2 px-3 py-2 rounded-lg border ${selectedCustomer.aktif ? 'bg-indigo-50 border-indigo-200' : 'bg-red-50 border-red-200'}`}>
+                  <svg className={`w-4 h-4 flex-shrink-0 ${selectedCustomer.aktif ? 'text-indigo-500' : 'text-red-500'}`} fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
                   </svg>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm text-indigo-800 font-medium">{selectedCustomer.nama}</span>
-                    <span className="text-xs text-indigo-500 ml-2">NIS: {selectedCustomer.nis}</span>
-                    <span className="text-xs text-indigo-400 ml-1">· {selectedCustomer.kamar} · {selectedCustomer.kelas}</span>
+                    <span className={`text-sm font-medium ${selectedCustomer.aktif ? 'text-indigo-800' : 'text-red-800'}`}>{selectedCustomer.nama}</span>
+                    <span className={`text-xs ml-2 ${selectedCustomer.aktif ? 'text-indigo-500' : 'text-red-500'}`}>NIS: {selectedCustomer.nis}</span>
+                    <span className={`text-xs ml-1 ${selectedCustomer.aktif ? 'text-indigo-400' : 'text-red-400'}`}>· {selectedCustomer.kamar} · {selectedCustomer.kelas}</span>
+                    {!selectedCustomer.aktif && (
+                      <span className="block text-xs text-red-600 font-medium mt-0.5">Tidak aktif berlangganan — tidak dapat membuat order</span>
+                    )}
                   </div>
                   <button
                     type="button"
                     onClick={() => { setSelectedCustomer(null); setCustomerQuery(''); }}
-                    className="ml-auto text-indigo-400 hover:text-indigo-600 flex-shrink-0"
+                    className={`ml-auto flex-shrink-0 ${selectedCustomer.aktif ? 'text-indigo-400 hover:text-indigo-600' : 'text-red-400 hover:text-red-600'}`}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -830,8 +838,8 @@ export default function IntakePage() {
 
             <button
               type="submit"
-              disabled={loading || !selectedCustomer}
-              className={`btn-primary w-full py-3 flex items-center justify-center gap-2 ${
+              disabled={loading || !selectedCustomer || !selectedCustomer.aktif}
+              className={`btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                 !selectedCustomer ? 'hidden lg:flex' : ''
               }`}
             >

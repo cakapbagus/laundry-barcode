@@ -65,7 +65,7 @@ export default function ScannerPage() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [selectedMachine, setSelectedMachine] = useState('');
   const [notes, setNotes] = useState('');
-  const [manualCode, setManualCode] = useState('LAU-');
+  const [manualCode, setManualCode] = useState('');
   const [orderInfo, setOrderInfo] = useState<OrderInfo | null>(null);
   const [scanStatus, setScanStatus] = useState<'idle' | 'success' | 'error' | 'warning'>('idle');
   const [statusMsg, setStatusMsg] = useState('');
@@ -209,7 +209,7 @@ export default function ScannerPage() {
       setOrderInfo(null);
       setSelectedMachine('');
       setNotes('');
-      setManualCode('LAU-');
+      setManualCode('');
       lastScannedRef.current = '';
     } catch (err: any) {
       setScanStatus('error');
@@ -222,9 +222,11 @@ export default function ScannerPage() {
 
   async function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!manualCode.trim()) return;
+    const val = manualCode.trim();
+    if (!val) return;
     lastScannedRef.current = '';
-    await handleQrDetected(manualCode.trim().toUpperCase());
+    // Jika NIS (angka), kirim apa adanya; jika kode order, uppercase
+    await handleQrDetected(/^\d+$/.test(val) ? val : val.toUpperCase());
   }
 
   function resetScan() {
@@ -233,7 +235,7 @@ export default function ScannerPage() {
     setStatusMsg('');
     setSelectedMachine('');
     setNotes('');
-    setManualCode('LAU-');
+    setManualCode('');
     lastScannedRef.current = '';
     setIsDuplicate(false);
   }
@@ -474,12 +476,12 @@ export default function ScannerPage() {
                   value={manualCode}
                   onChange={(e) => setManualCode(e.target.value)}
                   className="input-field flex-1"
-                  placeholder="LAU-YYYYMMDD-XXX"
+                  placeholder="Kode order (LAU-...) atau NIS"
                 />
                 <button type="submit" className="btn-primary whitespace-nowrap">Cari</button>
               </form>
               <p className="text-xs text-gray-400 mt-2">
-                Masukkan kode order secara manual jika kamera tidak tersedia
+                Masukkan kode order atau NIS santri jika kamera tidak tersedia
               </p>
             </div>
           )}

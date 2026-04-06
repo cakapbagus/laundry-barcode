@@ -21,7 +21,7 @@ export async function updateSetting(req: Request, res: Response): Promise<void> 
     const { key } = req.params;
     const { value } = req.body;
 
-    const allowedKeys = ['COMPLETION_DAYS', 'STUCK_HOURS', 'PRINT_COPIES', 'APP_TITLE', 'APP_SLOGAN', 'PAPER_WIDTH'];
+    const allowedKeys = ['COMPLETION_DAYS', 'STUCK_HOURS', 'PRINT_COPIES', 'APP_TITLE', 'APP_SLOGAN', 'PAPER_WIDTH', 'WEEKLY_WASH_LIMIT'];
     if (!allowedKeys.includes(key)) {
       res.status(400).json({ error: 'Kunci setting tidak valid' });
       return;
