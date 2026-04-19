@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 
 export async function createOrder(req: Request, res: Response): Promise<void> {
   try {
-    const { customerId, notes } = req.body;
+    const { customerId, notes, berat } = req.body;
 
     if (!customerId) {
       res.status(400).json({ error: 'ID santri wajib diisi' });
@@ -21,62 +21,81 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Check subscription status
-    if (!customer.aktif) {
-      res.status(403).json({
-        error: `${customer.nama} (NIS: ${customer.nis}) tidak aktif berlangganan. Hubungi manager untuk mengaktifkan.`,
-        code: 'CUSTOMER_INACTIVE',
-      });
-      return;
+    // ── DEPOSIT flow ──────────────────────────────────────────────────────────
+    let beratKg: number | null = null;
+    let biaya: number | null = null;
+
+    if (customer.tipe === 'DEPOSIT') {
+      const beratRaw = parseFloat(berat);
+      if (!berat || isNaN(beratRaw) || beratRaw <= 0) {
+        res.status(400).json({ error: 'Berat cucian wajib diisi untuk santri deposit', code: 'BERAT_REQUIRED' });
+        return;
+      }
+      // Round up to 1 decimal, min 1 kg
+      beratKg = Math.max(1, Math.ceil(beratRaw * 10) / 10);
+
+      const rateSetting = await prisma.setting.findUnique({ where: { key: 'DEPOSIT_RATE' } });
+      const ratePerKg = parseFloat(rateSetting?.value || '7000');
+      biaya = beratKg * ratePerKg;
+
+      if (customer.saldo < biaya) {
+        res.status(402).json({
+          error: `Saldo tidak cukup. Saldo: Rp ${customer.saldo.toLocaleString('id-ID')}, Biaya: Rp ${biaya.toLocaleString('id-ID')} (${beratKg} kg × Rp ${ratePerKg.toLocaleString('id-ID')})`,
+          code: 'INSUFFICIENT_SALDO',
+        });
+        return;
+      }
+    } else {
+      // ── BERLANGGANAN flow ────────────────────────────────────────────────────
+      if (!customer.aktif) {
+        res.status(403).json({
+          error: `${customer.nama} (NIS: ${customer.nis}) tidak aktif berlangganan. Hubungi manager untuk mengaktifkan.`,
+          code: 'CUSTOMER_INACTIVE',
+        });
+        return;
+      }
+
+      const weeklyLimitSetting = await prisma.setting.findUnique({ where: { key: 'WEEKLY_WASH_LIMIT' } });
+      const weeklyLimit = parseInt(weeklyLimitSetting?.value || '2');
+
+      const now = new Date();
+      const dayOfWeek = now.getDay();
+      const diffToMon = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() + diffToMon);
+      weekStart.setHours(0, 0, 0, 0);
+
+      const resetAt = customer.weeklyWashResetAt;
+      const needsReset = !resetAt || resetAt < weekStart;
+      const currentCount = needsReset ? 0 : customer.weeklyWashCount;
+
+      if (currentCount >= weeklyLimit) {
+        res.status(429).json({
+          error: `${customer.nama} sudah mencapai batas cuci pekan ini (${currentCount}/${weeklyLimit} kali). Limit direset setiap Senin.`,
+          code: 'WEEKLY_LIMIT_EXCEEDED',
+        });
+        return;
+      }
+
+      // Store for post-create update
+      (req as any).__weeklyMeta = { needsReset, currentCount, weekStart };
     }
 
-    // Check weekly wash limit
-    const weeklyLimitSetting = await prisma.setting.findUnique({ where: { key: 'WEEKLY_WASH_LIMIT' } });
-    const weeklyLimit = parseInt(weeklyLimitSetting?.value || '2');
-
-    // Determine current week boundaries (Mon 00:00 - Sun 23:59)
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
-    const diffToMon = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek);
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() + diffToMon);
-    weekStart.setHours(0, 0, 0, 0);
-
-    // Reset weekly count if it's a new week
-    const resetAt = customer.weeklyWashResetAt;
-    const needsReset = !resetAt || resetAt < weekStart;
-    const currentCount = needsReset ? 0 : customer.weeklyWashCount;
-
-    if (currentCount >= weeklyLimit) {
-      res.status(429).json({
-        error: `${customer.nama} sudah mencapai batas cuci pekan ini (${currentCount}/${weeklyLimit} kali). Limit direset setiap Senin.`,
-        code: 'WEEKLY_LIMIT_EXCEEDED',
-      });
-      return;
-    }
-
-    // Duplicate prevention: same customer within 30 min today
+    // Duplicate prevention: same customer within 30 min
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
-    const existing = await prisma.order.findFirst({
-      where: {
-        customerId,
-        createdAt: { gte: thirtyMinAgo },
-        status: { not: 'PICKED_UP' },
-      },
+    const dupOrder = await prisma.order.findFirst({
+      where: { customerId, createdAt: { gte: thirtyMinAgo }, status: { not: 'PICKED_UP' } },
     });
-
-    if (existing) {
+    if (dupOrder) {
       res.status(409).json({
-        error: `Order untuk ${customer.nama} (NIS: ${customer.nis}) sudah dibuat dalam 30 menit terakhir (${existing.orderCode})`,
+        error: `Order untuk ${customer.nama} (NIS: ${customer.nis}) sudah dibuat dalam 30 menit terakhir (${dupOrder.orderCode})`,
       });
       return;
     }
 
     const orderCode = await generateOrderCode(prisma);
 
-    const completionDaysSetting = await prisma.setting.findUnique({
-      where: { key: 'COMPLETION_DAYS' },
-    });
+    const completionDaysSetting = await prisma.setting.findUnique({ where: { key: 'COMPLETION_DAYS' } });
     const completionDays = parseInt(completionDaysSetting?.value || '3');
     const estimatedCompletion = new Date();
     estimatedCompletion.setDate(estimatedCompletion.getDate() + completionDays);
@@ -91,6 +110,8 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
         qrCode,
         customerId: customer.id,
         notes: notes?.trim() || null,
+        berat: beratKg,
+        biaya,
         status: 'INTAKE',
         estimatedCompletion,
         createdByUserId: req.user!.id,
@@ -102,31 +123,32 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
     });
 
     await prisma.stageHistory.create({
-      data: {
-        orderId: order.id,
-        fromStage: null,
-        toStage: 'INTAKE',
-        operatorId: req.user!.id,
-      },
+      data: { orderId: order.id, fromStage: null, toStage: 'INTAKE', operatorId: req.user!.id },
     });
 
     await prisma.scanLog.create({
-      data: {
-        orderId: order.id,
-        operatorId: req.user!.id,
-        scanType: 'INTAKE_START',
-        status: 'success',
-      },
+      data: { orderId: order.id, operatorId: req.user!.id, scanType: 'INTAKE_START', status: 'success' },
     });
 
-    // Update weekly wash count
-    await prisma.customer.update({
-      where: { id: customer.id },
-      data: {
-        weeklyWashCount: needsReset ? 1 : currentCount + 1,
-        weeklyWashResetAt: needsReset ? weekStart : customer.weeklyWashResetAt,
-      },
-    });
+    // Post-create: deduct saldo OR update weekly count
+    if (customer.tipe === 'DEPOSIT') {
+      const updated = await prisma.customer.update({
+        where: { id: customer.id },
+        data: { saldo: customer.saldo - biaya! },
+      });
+      (order.customer as any).saldo = updated.saldo;
+    } else {
+      const { needsReset, currentCount, weekStart } = (req as any).__weeklyMeta;
+      const newCount = needsReset ? 1 : currentCount + 1;
+      await prisma.customer.update({
+        where: { id: customer.id },
+        data: {
+          weeklyWashCount: newCount,
+          weeklyWashResetAt: needsReset ? weekStart : customer.weeklyWashResetAt,
+        },
+      });
+      (order.customer as any).weeklyWashCount = newCount;
+    }
 
     try {
       const io = getIo();
@@ -234,7 +256,7 @@ export async function deleteOrder(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
 
-    const order = await prisma.order.findUnique({ where: { id } });
+    const order = await prisma.order.findUnique({ where: { id }, include: { customer: true } });
     if (!order) {
       res.status(404).json({ error: 'Order tidak ditemukan' });
       return;
@@ -245,10 +267,29 @@ export async function deleteOrder(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const customer = order.customer;
+
+    // Build refund update for customer
+    let customerUpdate: Parameters<typeof prisma.customer.update>[0]['data'] | null = null;
+
+    if (customer.tipe === 'DEPOSIT' && order.biaya != null) {
+      customerUpdate = { saldo: customer.saldo + order.biaya };
+    } else if (customer.tipe === 'BERLANGGANAN' && customer.weeklyWashCount > 0) {
+      // Only decrement if the order was created within the current week window
+      const inCurrentWeek =
+        customer.weeklyWashResetAt != null && order.createdAt >= customer.weeklyWashResetAt;
+      if (inCurrentWeek) {
+        customerUpdate = { weeklyWashCount: customer.weeklyWashCount - 1 };
+      }
+    }
+
     await prisma.$transaction([
       prisma.scanLog.deleteMany({ where: { orderId: id } }),
       prisma.stageHistory.deleteMany({ where: { orderId: id } }),
       prisma.order.delete({ where: { id } }),
+      ...(customerUpdate
+        ? [prisma.customer.update({ where: { id: customer.id }, data: customerUpdate })]
+        : []),
     ]);
 
     try {

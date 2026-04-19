@@ -12,6 +12,8 @@ interface Customer {
   noHape?: string | null;
   kamar: string;
   kelas: string;
+  tipe: 'BERLANGGANAN' | 'DEPOSIT';
+  saldo: number;
   aktif: boolean;
   weeklyWashCount: number;
 }
@@ -45,6 +47,7 @@ export default function IntakePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [notes, setNotes] = useState('');
+  const [berat, setBerat] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
@@ -56,6 +59,8 @@ export default function IntakePage() {
 
   // Print copies setting
   const [printCopies, setPrintCopies] = useState(2);
+  const [depositRate, setDepositRate] = useState(7000);
+  const [weeklyLimit, setWeeklyLimit] = useState(2);
 
   // Kartu santri scanner
   const [showCardScanner, setShowCardScanner] = useState(false);
@@ -71,6 +76,10 @@ export default function IntakePage() {
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function fmtRupiah(n: number) {
+    return 'Rp ' + n.toLocaleString('id-ID');
+  }
 
   // Search customers
   useEffect(() => {
@@ -107,11 +116,15 @@ export default function IntakePage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Load PRINT_COPIES setting
+  // Load settings
   useEffect(() => {
     apiClient.get('/settings').then((res) => {
       const v = parseInt(res.data.PRINT_COPIES, 10);
       if (!isNaN(v) && v >= 1) setPrintCopies(v);
+      const r = parseFloat(res.data.DEPOSIT_RATE);
+      if (!isNaN(r) && r > 0) setDepositRate(r);
+      const wl = parseInt(res.data.WEEKLY_WASH_LIMIT, 10);
+      if (!isNaN(wl) && wl > 0) setWeeklyLimit(wl);
     }).catch(() => {});
   }, []);
 
@@ -344,6 +357,17 @@ export default function IntakePage() {
     }
   }
 
+  function roundUpWeight(value: string): string {
+    const parsed = parseFloat(value.replace(',', '.'));
+    if (isNaN(parsed) || parsed <= 0) return '';
+    return Math.max(1, Math.ceil(parsed * 10) / 10).toFixed(1);
+  }
+
+  function parseWeight(value: string): number | null {
+    const parsed = parseFloat(value.replace(',', '.'));
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
   // ─── Order Submit ───────────────────────────────────────────────────────────
 
   async function handleSubmit(e: FormEvent) {
@@ -355,16 +379,29 @@ export default function IntakePage() {
       return;
     }
 
+    let beratValue: number | null = null;
+    if (selectedCustomer.tipe === 'DEPOSIT') {
+      const parsedBerat = parseWeight(berat);
+      if (parsedBerat === null || parsedBerat <= 0) {
+        setError('Berat cucian wajib diisi untuk santri deposit');
+        return;
+      }
+      beratValue = Math.max(1, Math.ceil(parsedBerat * 10) / 10);
+      setBerat(beratValue.toFixed(1));
+    }
+
     setLoading(true);
     try {
       const res = await apiClient.post('/orders', {
         customerId: selectedCustomer.id,
         notes: notes.trim() || undefined,
+        ...(selectedCustomer.tipe === 'DEPOSIT' ? { berat: beratValue } : {}),
       });
       setOrderResult(res.data);
       setCustomerQuery('');
       setSelectedCustomer(null);
       setNotes('');
+      setBerat('');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Gagal membuat order');
     } finally {
@@ -545,6 +582,22 @@ export default function IntakePage() {
                     {new Date(orderResult.estimatedCompletion).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
                 </div>
+                {orderResult.customer.tipe === 'BERLANGGANAN' && (
+                  <div className="flex justify-between items-center px-3 py-2">
+                    <span className="text-xs text-gray-500 flex-shrink-0 mr-2">Sisa Cuci Pekan Ini</span>
+                    <span className="text-xs font-semibold text-red-600 text-right">
+                      {weeklyLimit - Math.max(0, weeklyLimit - orderResult.customer.weeklyWashCount)} kali
+                    </span>
+                  </div>
+                )}
+                {orderResult.customer.tipe === 'DEPOSIT' && (
+                  <div className="flex justify-between items-center px-3 py-2">
+                    <span className="text-xs text-gray-500 flex-shrink-0 mr-2">Sisa Saldo</span>
+                    <span className="text-xs font-semibold text-red-600 text-right">
+                      {fmtRupiah(orderResult.customer.saldo)}
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="flex flex-col gap-2 mobile-landscape:flex-row">
                 <button onClick={handlePrint}
@@ -652,8 +705,48 @@ export default function IntakePage() {
                   <textarea className="input-field resize-none" rows={2} placeholder="Catatan khusus..."
                     value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </div>
+                {selectedCustomer?.tipe === 'DEPOSIT' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Berat Cucian <span className="text-red-500">*</span>
+                      <span className="text-gray-400 font-normal"> (kg, min. 1 kg)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0.1"
+                      step="0.1"
+                      className="input-field"
+                      placeholder="Contoh: 2.5"
+                      value={berat}
+                      onChange={(e) => setBerat(e.target.value)}
+                      onBlur={(e) => setBerat(roundUpWeight(e.target.value))}
+                    />
+                    {(() => {
+                      const raw = parseFloat(berat.replace(',', '.'));
+                      const kg = (!isNaN(raw) && raw > 0) ? Math.max(1, Math.ceil(raw * 10) / 10) : null;
+                      const biaya = kg != null ? kg * depositRate : null;
+                      const kurang = biaya != null && biaya > selectedCustomer.saldo;
+                      return (
+                        <div className="mt-1 space-y-0.5">
+                          {biaya != null ? (
+                            <p className={`text-xs font-semibold ${kurang ? 'text-red-600' : 'text-amber-700'}`}>
+                              Biaya: Rp {biaya.toLocaleString('id-ID')}
+                              <span className="font-normal text-gray-400"> ({kg} kg × Rp {depositRate.toLocaleString('id-ID')}/kg)</span>
+                              {kurang && <span className="block text-red-500">Saldo tidak cukup</span>}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-gray-400">Masukkan berat untuk melihat estimasi biaya</p>
+                          )}
+                          <p className="text-xs text-gray-400">
+                            Saldo: <span className="font-medium text-amber-700">Rp {selectedCustomer.saldo.toLocaleString('id-ID')}</span>
+                          </p>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
                 {selectedCustomer && (
-                  <button type="submit" disabled={loading || !selectedCustomer.aktif}
+                  <button type="submit" disabled={loading || (selectedCustomer.tipe === 'BERLANGGANAN' ? !selectedCustomer.aktif : !berat || parseFloat(berat) <= 0)}
                     className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                     {loading ? (
                       <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -699,6 +792,16 @@ export default function IntakePage() {
                     <p><span className="font-medium">No HP:</span> {orderResult.customer.noHape}</p>
                     <p><span className="font-medium">Kamar:</span> {orderResult.customer.kamar} &nbsp;|&nbsp; <span className="font-medium">Kelas:</span> {orderResult.customer.kelas}</p>
                     <p><span className="font-medium">Est. Selesai:</span> {new Date(orderResult.estimatedCompletion).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    {orderResult.customer.tipe === 'BERLANGGANAN' && (
+                      <p className="text-red-600 font-semibold">
+                        Sisa Cuci Pekan Ini: {weeklyLimit - Math.max(0, weeklyLimit - orderResult.customer.weeklyWashCount)} kali
+                      </p>
+                    )}
+                    {orderResult.customer.tipe === 'DEPOSIT' && (
+                      <p className="text-red-600 font-semibold">
+                        Sisa Saldo: {fmtRupiah(orderResult.customer.saldo)}
+                      </p>
+                    )}
                   </div>
                   <img src={orderResult.qrCode} alt="QR Code" className="w-24 h-24 flex-shrink-0 rounded border border-green-200" />
                 </div>
@@ -845,9 +948,49 @@ export default function IntakePage() {
               />
             </div>
 
+            {/* Berat — only for DEPOSIT */}
+            {selectedCustomer?.tipe === 'DEPOSIT' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Berat Cucian <span className="text-red-500">*</span>
+                  <span className="text-gray-400 font-normal"> (kg, min. 1 kg)</span>
+                </label>
+                <input
+                  type="number" min="0.1" step="0.1"
+                  className="input-field"
+                  placeholder="Contoh: 2.5"
+                  value={berat}
+                  onChange={(e) => setBerat(e.target.value)}
+                  onBlur={(e) => setBerat(roundUpWeight(e.target.value))}
+                />
+                {(() => {
+                  const raw = parseFloat(berat.replace(',', '.'));
+                  const kg = (!isNaN(raw) && raw > 0) ? Math.max(1, Math.ceil(raw * 10) / 10) : null;
+                  const biaya = kg != null ? kg * depositRate : null;
+                  const kurang = biaya != null && biaya > selectedCustomer.saldo;
+                  return (
+                    <div className="mt-1 space-y-0.5">
+                      {biaya != null ? (
+                        <p className={`text-xs font-semibold ${kurang ? 'text-red-600' : 'text-amber-700'}`}>
+                          Biaya: Rp {biaya.toLocaleString('id-ID')}
+                          <span className="font-normal text-gray-400"> ({kg} kg × Rp {depositRate.toLocaleString('id-ID')}/kg)</span>
+                          {kurang && <span className="block text-red-500">Saldo tidak cukup</span>}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-gray-400">Masukkan berat untuk melihat estimasi biaya</p>
+                      )}
+                      <p className="text-xs text-gray-400">
+                        Saldo: <span className="font-medium text-amber-700">Rp {selectedCustomer.saldo.toLocaleString('id-ID')}</span>
+                      </p>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={loading || !selectedCustomer || !selectedCustomer.aktif}
+              disabled={loading || !selectedCustomer || (selectedCustomer.tipe === 'BERLANGGANAN' ? !selectedCustomer.aktif : !berat || parseFloat(berat) <= 0)}
               className={`btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                 !selectedCustomer ? 'hidden lg:flex' : ''
               }`}

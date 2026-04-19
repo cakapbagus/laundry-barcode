@@ -6,6 +6,7 @@ import {
   updateCustomer,
   deleteCustomer,
   toggleCustomerAktif,
+  topupSaldo,
   getCustomerByNis,
   getCustomerFilters,
   getCustomerTemplate,
@@ -46,6 +47,7 @@ router.get('/', searchCustomers);
 router.post('/', createCustomer);
 router.put('/:id', requireRole('MANAGER'), updateCustomer);
 router.patch('/:id/toggle-aktif', requireRole('MANAGER'), toggleCustomerAktif);
+router.post('/:id/topup', requireRole('MANAGER'), topupSaldo);
 router.delete('/:id', requireRole('MANAGER'), deleteCustomer);
 
 export default router;

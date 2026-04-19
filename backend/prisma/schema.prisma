@@ -29,6 +29,8 @@ model Customer {
   kamar             String
   kelas             String
   noHape            String?
+  tipe              String    @default("BERLANGGANAN") // BERLANGGANAN | DEPOSIT
+  saldo             Float     @default(0)
   aktif             Boolean   @default(true)
   weeklyWashCount   Int       @default(0)
   weeklyWashResetAt DateTime?
@@ -52,6 +54,8 @@ model Order {
   customerId          String
   customer            Customer  @relation(fields: [customerId], references: [id])
   notes               String?
+  berat               Float?    // kg, only for DEPOSIT orders
+  biaya               Float?    // calculated cost for DEPOSIT orders
   status              String    @default("INTAKE")
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt

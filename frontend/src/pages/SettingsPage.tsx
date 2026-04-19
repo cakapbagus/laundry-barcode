@@ -28,6 +28,7 @@ export default function SettingsPage() {
     APP_TITLE: 'Laundry Pesantren',
     APP_SLOGAN: 'Sistem Pelacak Cucian',
     WEEKLY_WASH_LIMIT: '2',
+    DEPOSIT_RATE: '7000',
   });
   const loadConfig = useAppConfigStore((s) => s.loadConfig);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -79,6 +80,7 @@ export default function SettingsPage() {
         apiClient.put('/settings/APP_TITLE', { value: settings.APP_TITLE }),
         apiClient.put('/settings/APP_SLOGAN', { value: settings.APP_SLOGAN }),
         apiClient.put('/settings/WEEKLY_WASH_LIMIT', { value: settings.WEEKLY_WASH_LIMIT }),
+        apiClient.put('/settings/DEPOSIT_RATE', { value: settings.DEPOSIT_RATE }),
       ]);
       setSavedSettings(true);
       setTimeout(() => setSavedSettings(false), 1500);
@@ -202,6 +204,9 @@ export default function SettingsPage() {
                 />
               </div>
 
+              <div className="border-b border-gray-200 my-2 mobile-landscape:my-1.5 pt-2">
+                <label className="text-xs font-semibold text-gray-900 block mb-1">Berlangganan</label>
+              </div>
               <div className="flex items-center gap-2">
                 <label className="text-xs font-medium text-gray-700 whitespace-nowrap w-28 mobile-landscape:w-24 flex-shrink-0">
                   Limit Cuci/Pekan
@@ -217,6 +222,26 @@ export default function SettingsPage() {
                 />
               </div>
 
+              <div className="border-b border-gray-200 my-2 mobile-landscape:my-1.5 pt-2">
+                <label className="text-xs font-semibold text-gray-900 block mb-1">Deposit</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-gray-700 whitespace-nowrap w-28 mobile-landscape:w-24 flex-shrink-0">
+                  Tarif Laundry/kg
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  className="input-field py-1.5 mobile-landscape:py-1 text-sm flex-1"
+                  placeholder="7000"
+                  value={settings.DEPOSIT_RATE}
+                  onChange={(e) => setSettings(prev => ({ ...prev, DEPOSIT_RATE: e.target.value }))}
+                />
+              </div>
+
+              <div className="border-b border-gray-200 my-2 mobile-landscape:my-1.5 pt-2">
+                <label className="text-xs font-semibold text-gray-900 block mb-1">Cetak</label>
+              </div>
               <div className="flex items-center gap-2">
                 <label className="text-xs font-medium text-gray-700 whitespace-nowrap w-28 mobile-landscape:w-24 flex-shrink-0">
                   Cetak Nota (copy)

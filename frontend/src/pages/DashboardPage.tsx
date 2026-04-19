@@ -23,6 +23,8 @@ interface Order {
   orderCode: string;
   customer: Customer;
   status: string;
+  berat?: number | null;
+  biaya?: number | null;
   createdAt: string;
   updatedAt: string;
   estimatedCompletion: string;
@@ -177,6 +179,18 @@ function OrderDetailModal({ order, onClose, stuckThresholdSec }: { order: Order;
               <p className="text-gray-500 text-xs">Est. Selesai</p>
               <p className="font-semibold">{new Date(order.estimatedCompletion).toLocaleDateString('id-ID')}</p>
             </div>
+            {order.berat != null && (
+              <>
+                <div className="bg-amber-50 rounded-lg p-3">
+                  <p className="text-amber-600 text-xs">Berat</p>
+                  <p className="font-semibold">{order.berat} kg</p>
+                </div>
+                <div className="bg-amber-50 rounded-lg p-3">
+                  <p className="text-amber-600 text-xs">Biaya Laundry</p>
+                  <p className="font-semibold">Rp {order.biaya?.toLocaleString('id-ID') ?? '-'}</p>
+                </div>
+              </>
+            )}
           </div>
 
           <h4 className="font-semibold text-gray-700 mb-3">Riwayat Proses</h4>

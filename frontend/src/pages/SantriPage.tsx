@@ -9,10 +9,21 @@ interface Customer {
   noHape?: string | null;
   kamar: string;
   kelas: string;
+  tipe: 'BERLANGGANAN' | 'DEPOSIT';
+  saldo: number;
   aktif: boolean;
 }
 
-const emptyForm = { nis: '', nama: '', noHape: '', kamar: '', kelas: '', aktif: true };
+interface FormState {
+  nis: string; nama: string; noHape: string; kamar: string; kelas: string;
+  tipe: 'BERLANGGANAN' | 'DEPOSIT'; saldo: number; aktif: boolean;
+}
+
+const emptyForm: FormState = { nis: '', nama: '', noHape: '', kamar: '', kelas: '', tipe: 'BERLANGGANAN', saldo: 0, aktif: true };
+
+function fmtRupiah(n: number) {
+  return 'Rp ' + n.toLocaleString('id-ID');
+}
 
 export default function SantriPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -21,7 +32,7 @@ export default function SantriPage() {
 
   // Add / Edit modal
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<FormState>(emptyForm);
   const [editTarget, setEditTarget] = useState<Customer | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -29,6 +40,12 @@ export default function SantriPage() {
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Topup modal
+  const [topupTarget, setTopupTarget] = useState<Customer | null>(null);
+  const [topupJumlah, setTopupJumlah] = useState('');
+  const [toppingUp, setToppingUp] = useState(false);
+  const [topupError, setTopupError] = useState('');
 
   // Bulk upload
   const [bulkFile, setBulkFile] = useState<File | null>(null);
@@ -65,7 +82,7 @@ export default function SantriPage() {
 
   function openEdit(c: Customer) {
     setEditTarget(c);
-    setForm({ nis: c.nis, nama: c.nama, noHape: c.noHape || '', kamar: c.kamar, kelas: c.kelas, aktif: c.aktif });
+    setForm({ nis: c.nis, nama: c.nama, noHape: c.noHape || '', kamar: c.kamar, kelas: c.kelas, tipe: c.tipe, saldo: c.saldo, aktif: c.aktif });
     setFormError('');
     setModalMode('edit');
   }
@@ -78,10 +95,14 @@ export default function SantriPage() {
     }
     setSaving(true);
     try {
+      const payload: Record<string, unknown> = {
+        nis: form.nis, nama: form.nama, noHape: form.noHape, kamar: form.kamar, kelas: form.kelas, tipe: form.tipe, aktif: form.aktif,
+      };
+      if (modalMode === 'add' && form.tipe === 'DEPOSIT') payload.saldo = form.saldo;
       if (modalMode === 'add') {
-        await apiClient.post('/customer', form);
+        await apiClient.post('/customer', payload);
       } else if (editTarget) {
-        await apiClient.put(`/customer/${editTarget.id}`, form);
+        await apiClient.put(`/customer/${editTarget.id}`, payload);
       }
       setModalMode(null);
       await fetchCustomers(search || undefined);
@@ -115,6 +136,29 @@ export default function SantriPage() {
     }
   }
 
+  function openTopup(c: Customer) {
+    setTopupTarget(c);
+    setTopupJumlah('');
+    setTopupError('');
+  }
+
+  async function handleTopup() {
+    if (!topupTarget) return;
+    const jumlah = parseFloat(topupJumlah);
+    if (!jumlah || jumlah <= 0) { setTopupError('Jumlah harus lebih dari 0'); return; }
+    setToppingUp(true);
+    setTopupError('');
+    try {
+      await apiClient.post(`/customer/${topupTarget.id}/topup`, { jumlah });
+      setTopupTarget(null);
+      await fetchCustomers(search || undefined);
+    } catch (err: any) {
+      setTopupError(err?.response?.data?.error || 'Gagal top-up saldo.');
+    } finally {
+      setToppingUp(false);
+    }
+  }
+
   async function handleDownloadTemplate() {
     const res = await apiClient.get('/customer/template', { responseType: 'blob' });
     const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
@@ -134,9 +178,9 @@ export default function SantriPage() {
     setUploading(true);
     setUploadResult(null);
     try {
-      const form = new FormData();
-      form.append('file', bulkFile);
-      const res = await apiClient.post('/customer/bulk-upload', form, {
+      const fd = new FormData();
+      fd.append('file', bulkFile);
+      const res = await apiClient.post('/customer/bulk-upload', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setUploadResult(res.data.data);
@@ -182,8 +226,81 @@ export default function SantriPage() {
           />
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+        {/* Mobile card list */}
+        <div className="sm:hidden mb-4 space-y-2">
+          {loading ? (
+            <div className="py-10 text-center text-sm text-gray-400">Memuat data...</div>
+          ) : customers.length === 0 ? (
+            <div className="py-10 text-center text-sm text-gray-400">
+              {search ? 'Tidak ada santri yang cocok.' : 'Belum ada santri terdaftar.'}
+            </div>
+          ) : customers.map((c) => (
+            <div
+              key={c.id}
+              className={`bg-white rounded-xl border border-gray-100 shadow-sm px-3 py-2.5 flex items-center gap-3 ${c.tipe === 'BERLANGGANAN' && !c.aktif ? 'opacity-60' : ''}`}
+            >
+              {/* Left: name + meta */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-gray-900 text-sm leading-tight truncate">{c.nama}</span>
+                  {c.tipe === 'DEPOSIT' ? (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 flex-shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      Deposit
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => handleToggleAktif(c)}
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
+                        c.aktif ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${c.aktif ? 'bg-green-500' : 'bg-red-500'}`} />
+                      {c.aktif ? 'Aktif' : 'Nonaktif'}
+                    </button>
+                  )}
+                </div>
+                {/* no HP */}
+                <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
+                  <span className='font-mono'>{c.noHape || "-"}</span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
+                  <span className="font-mono">{c.nis}</span>
+                  <span>·</span>
+                  <span>{c.kamar}</span>
+                  <span>·</span>
+                  <span>{c.kelas}</span>
+                </div>
+                {c.tipe === 'DEPOSIT' && (
+                  <div className="text-xs font-semibold text-amber-700 mt-0.5">{fmtRupiah(c.saldo)}</div>
+                )}
+              </div>
+              {/* Right: action buttons */}
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                {c.tipe === 'DEPOSIT' && (
+                  <button onClick={() => openTopup(c)} className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg" title="Isi Saldo">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </button>
+                )}
+                <button onClick={() => openEdit(c)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Edit">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button onClick={() => setDeleteTarget(c)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Hapus">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
           {loading ? (
             <div className="py-12 text-center text-sm text-gray-400">Memuat data...</div>
           ) : customers.length === 0 ? (
@@ -198,39 +315,57 @@ export default function SantriPage() {
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">NIS</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nama</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">No HP</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Kamar</th>
-                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Kelas</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                    <th className="px-4 py-3 w-24" />
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Kamar</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Kelas</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tipe / Status</th>
+                    <th className="px-4 py-3 w-28" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {customers.map((c) => (
-                    <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${!c.aktif ? 'opacity-60' : ''}`}>
+                    <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${c.tipe === 'BERLANGGANAN' && !c.aktif ? 'opacity-60' : ''}`}>
                       <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.nis}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        {c.nama}
-                        <div className="sm:hidden text-xs text-gray-400 font-normal mt-0.5">{c.kamar} · {c.kelas}</div>
-                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{c.nama}</td>
                       <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{c.noHape || <span className="text-gray-300">-</span>}</td>
-                      <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{c.kamar}</td>
-                      <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{c.kelas}</td>
+                      <td className="px-4 py-3 text-gray-600">{c.kamar}</td>
+                      <td className="px-4 py-3 text-gray-600">{c.kelas}</td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => handleToggleAktif(c)}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
-                            c.aktif
-                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                              : 'bg-red-100 text-red-700 hover:bg-red-200'
-                          }`}
-                          title={c.aktif ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.aktif ? 'bg-green-500' : 'bg-red-500'}`} />
-                          {c.aktif ? 'Aktif' : 'Nonaktif'}
-                        </button>
+                        {c.tipe === 'DEPOSIT' ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                              Deposit
+                            </span>
+                            <span className="text-xs font-semibold text-gray-700">{fmtRupiah(c.saldo)}</span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleAktif(c)}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                              c.aktif
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'bg-red-100 text-red-700 hover:bg-red-200'
+                            }`}
+                            title={c.aktif ? 'Klik untuk nonaktifkan' : 'Klik untuk aktifkan'}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.aktif ? 'bg-green-500' : 'bg-red-500'}`} />
+                            {c.aktif ? 'Aktif' : 'Nonaktif'}
+                          </button>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
+                          {c.tipe === 'DEPOSIT' && (
+                            <button
+                              onClick={() => openTopup(c)}
+                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                              title="Isi Saldo"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                              </svg>
+                            </button>
+                          )}
                           <button
                             onClick={() => openEdit(c)}
                             className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -265,10 +400,11 @@ export default function SantriPage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">Import Data Santri (Bulk Upload)</h2>
           <p className="text-xs text-gray-500 mb-3">
-            Upload file CSV atau Excel (XLS/XLSX) berisi data santri. Kolom wajib:{' '}
+            Upload file CSV atau Excel (XLS/XLSX). Kolom wajib:{' '}
             <span className="font-mono">nis, nama, kamar, kelas</span>. Kolom opsional:{' '}
-            <span className="font-mono">noHape</span>, <span className="font-mono">aktif</span> (true/false, default: true).{' '}
-            NIS yang sudah terdaftar akan <strong>diperbarui</strong> (termasuk status aktif).
+            <span className="font-mono">noHape</span>, <span className="font-mono">tipe</span> (BERLANGGANAN/DEPOSIT),{' '}
+            <span className="font-mono">saldo</span>, <span className="font-mono">aktif</span> (true/false).{' '}
+            NIS yang sudah terdaftar akan <strong>diperbarui</strong>.
           </p>
           <div className="flex flex-wrap gap-2 mb-3">
             <button
@@ -337,7 +473,7 @@ export default function SantriPage() {
       {/* Add / Edit Modal */}
       {modalMode && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setModalMode(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-base font-semibold text-gray-900 mb-4">
               {modalMode === 'add' ? 'Tambah Santri' : 'Edit Santri'}
             </h3>
@@ -365,19 +501,62 @@ export default function SantriPage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, noHape: e.target.value }))}
                 />
               </div>
-              <div className="flex items-center gap-3">
-                <label className="text-sm font-medium text-gray-700">Status Berlangganan</label>
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, aktif: !prev.aktif }))}
-                  className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${form.aktif ? 'bg-indigo-600' : 'bg-gray-300'}`}
-                >
-                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.aktif ? 'translate-x-4' : 'translate-x-0'}`} />
-                </button>
-                <span className={`text-xs font-medium ${form.aktif ? 'text-green-600' : 'text-gray-400'}`}>
-                  {form.aktif ? 'Aktif Berlangganan' : 'Tidak Aktif'}
-                </span>
+
+              {/* Tipe selector */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tipe Santri</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['BERLANGGANAN', 'DEPOSIT'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, tipe: t }))}
+                      className={`py-2 px-3 rounded-lg text-sm font-medium border-2 transition-colors ${
+                        form.tipe === t
+                          ? t === 'DEPOSIT'
+                            ? 'border-amber-400 bg-amber-50 text-amber-700'
+                            : 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      {t === 'BERLANGGANAN' ? 'Berlangganan' : 'Deposit'}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Saldo awal — only on add, only for DEPOSIT */}
+              {modalMode === 'add' && form.tipe === 'DEPOSIT' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Saldo Awal <span className="text-gray-400 font-normal">(Rp)</span></label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input-field"
+                    placeholder="0"
+                    value={form.saldo}
+                    onChange={(e) => setForm((prev) => ({ ...prev, saldo: parseFloat(e.target.value) || 0 }))}
+                  />
+                </div>
+              )}
+
+              {/* Aktif toggle — only for BERLANGGANAN */}
+              {form.tipe === 'BERLANGGANAN' && (
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium text-gray-700">Status Berlangganan</label>
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, aktif: !prev.aktif }))}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${form.aktif ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.aktif ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                  <span className={`text-xs font-medium ${form.aktif ? 'text-green-600' : 'text-gray-400'}`}>
+                    {form.aktif ? 'Aktif Berlangganan' : 'Tidak Aktif'}
+                  </span>
+                </div>
+              )}
+
               {formError && <p className="text-xs text-red-600">{formError}</p>}
             </div>
             <div className="flex gap-3 mt-5">
@@ -393,6 +572,53 @@ export default function SantriPage() {
                 className="flex-1 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
               >
                 {saving ? 'Menyimpan...' : 'Simpan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Topup Modal */}
+      {topupTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setTopupTarget(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-gray-900 mb-1">Isi Saldo Deposit</h3>
+            <p className="text-sm text-gray-500 mb-1">{topupTarget.nama} <span className="font-mono text-xs">({topupTarget.nis})</span></p>
+            <p className="text-xs text-gray-400 mb-4">Saldo saat ini: <span className="font-semibold text-gray-700">{fmtRupiah(topupTarget.saldo)}</span></p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah Top-up (Rp)</label>
+                <input
+                  type="number"
+                  min="1"
+                  className="input-field"
+                  placeholder="Contoh: 50000"
+                  value={topupJumlah}
+                  onChange={(e) => setTopupJumlah(e.target.value)}
+                  autoFocus
+                  onKeyDown={(e) => e.key === 'Enter' && handleTopup()}
+                />
+              </div>
+              {topupJumlah && parseFloat(topupJumlah) > 0 && (
+                <p className="text-xs text-gray-500">
+                  Saldo setelah top-up: <span className="font-semibold text-amber-700">{fmtRupiah(topupTarget.saldo + (parseFloat(topupJumlah) || 0))}</span>
+                </p>
+              )}
+              {topupError && <p className="text-xs text-red-600">{topupError}</p>}
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                onClick={() => setTopupTarget(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleTopup}
+                disabled={toppingUp || !topupJumlah || parseFloat(topupJumlah) <= 0}
+                className="flex-1 py-2 rounded-lg text-sm font-medium bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50"
+              >
+                {toppingUp ? 'Memproses...' : 'Isi Saldo'}
               </button>
             </div>
           </div>
