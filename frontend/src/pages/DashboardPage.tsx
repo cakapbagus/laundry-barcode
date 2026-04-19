@@ -13,6 +13,7 @@ interface Customer {
   id: string;
   nis: string;
   nama: string;
+  noHape?: string | null;
   kamar: string;
   kelas: string;
 }
@@ -168,7 +169,11 @@ function OrderDetailModal({ order, onClose, stuckThresholdSec }: { order: Order;
               <p className="text-gray-500 text-xs">Dibuat</p>
               <p className="font-semibold">{new Date(order.createdAt).toLocaleString('id-ID')}</p>
             </div>
-            <div className="bg-gray-50 rounded-lg p-3 col-span-2">
+            <div className="bg-gray-50 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">No HP</p>
+              <p className="font-semibold">{order.customer.noHape || '-'}</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
               <p className="text-gray-500 text-xs">Est. Selesai</p>
               <p className="font-semibold">{new Date(order.estimatedCompletion).toLocaleDateString('id-ID')}</p>
             </div>

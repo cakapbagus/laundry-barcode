@@ -28,6 +28,7 @@ model Customer {
   nama              String
   kamar             String
   kelas             String
+  noHape            String?
   aktif             Boolean   @default(true)
   weeklyWashCount   Int       @default(0)
   weeklyWashResetAt DateTime?

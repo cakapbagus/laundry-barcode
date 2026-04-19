@@ -6,12 +6,13 @@ interface Customer {
   id: string;
   nis: string;
   nama: string;
+  noHape?: string | null;
   kamar: string;
   kelas: string;
   aktif: boolean;
 }
 
-const emptyForm = { nis: '', nama: '', kamar: '', kelas: '', aktif: true };
+const emptyForm = { nis: '', nama: '', noHape: '', kamar: '', kelas: '', aktif: true };
 
 export default function SantriPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -64,7 +65,7 @@ export default function SantriPage() {
 
   function openEdit(c: Customer) {
     setEditTarget(c);
-    setForm({ nis: c.nis, nama: c.nama, kamar: c.kamar, kelas: c.kelas, aktif: c.aktif });
+    setForm({ nis: c.nis, nama: c.nama, noHape: c.noHape || '', kamar: c.kamar, kelas: c.kelas, aktif: c.aktif });
     setFormError('');
     setModalMode('edit');
   }
@@ -196,6 +197,7 @@ export default function SantriPage() {
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">NIS</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nama</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">No HP</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Kamar</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Kelas</th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
@@ -210,6 +212,7 @@ export default function SantriPage() {
                         {c.nama}
                         <div className="sm:hidden text-xs text-gray-400 font-normal mt-0.5">{c.kamar} · {c.kelas}</div>
                       </td>
+                      <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{c.noHape || <span className="text-gray-300">-</span>}</td>
                       <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{c.kamar}</td>
                       <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{c.kelas}</td>
                       <td className="px-4 py-3 text-center">
@@ -264,7 +267,7 @@ export default function SantriPage() {
           <p className="text-xs text-gray-500 mb-3">
             Upload file CSV atau Excel (XLS/XLSX) berisi data santri. Kolom wajib:{' '}
             <span className="font-mono">nis, nama, kamar, kelas</span>. Kolom opsional:{' '}
-            <span className="font-mono">aktif</span> (true/false, default: true).{' '}
+            <span className="font-mono">noHape</span>, <span className="font-mono">aktif</span> (true/false, default: true).{' '}
             NIS yang sudah terdaftar akan <strong>diperbarui</strong> (termasuk status aktif).
           </p>
           <div className="flex flex-wrap gap-2 mb-3">
@@ -352,6 +355,16 @@ export default function SantriPage() {
                   />
                 </div>
               ))}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">No HP <span className="text-gray-400 font-normal">(opsional)</span></label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Contoh: 08123456789"
+                  value={form.noHape}
+                  onChange={(e) => setForm((prev) => ({ ...prev, noHape: e.target.value }))}
+                />
+              </div>
               <div className="flex items-center gap-3">
                 <label className="text-sm font-medium text-gray-700">Status Berlangganan</label>
                 <button

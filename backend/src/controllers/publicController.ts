@@ -47,9 +47,12 @@ export async function trackOrderByNis(req: Request, res: Response): Promise<void
   try {
     const { nis } = req.params;
 
-    const customer = await prisma.customer.findUnique({ where: { nis } });
+    let customer = await prisma.customer.findUnique({ where: { nis } });
     if (!customer) {
-      res.status(404).json({ error: `Santri dengan NIS ${nis} tidak ditemukan` });
+      customer = await prisma.customer.findFirst({ where: { noHape: nis } });
+    }
+    if (!customer) {
+      res.status(404).json({ error: `Santri dengan NIS / No HP ${nis} tidak ditemukan` });
       return;
     }
 

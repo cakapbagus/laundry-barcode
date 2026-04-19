@@ -128,7 +128,7 @@ export default function PublicTrackPage() {
         {/* Search Box */}
         <form onSubmit={handleSearch} className="mb-3 sm:mb-6 mobile-landscape:mb-2">
           <label className="hidden sm:block mobile-landscape:!hidden text-sm font-medium text-gray-700 mb-2">
-            Masukkan Kode Order atau NIS Santri
+            Masukkan Kode Order / NIS / No HP Santri
           </label>
           <div className="flex gap-2">
             <input
@@ -136,7 +136,7 @@ export default function PublicTrackPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="input-field flex-1 font-mono"
-              placeholder="Kode order (LAU-...) atau NIS"
+              placeholder="Kode order / NIS / No HP"
               autoCapitalize="characters"
             />
             <button type="submit" disabled={loading} className="btn-primary whitespace-nowrap">

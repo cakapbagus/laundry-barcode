@@ -179,12 +179,15 @@ export async function integrityCheck(req: Request, res: Response): Promise<void>
 
     let order;
 
-    // Jika input berupa angka saja → cari berdasarkan NIS
+    // Jika input berupa angka saja → cari berdasarkan NIS, fallback noHape
     if (/^\d+$/.test(orderCode.trim())) {
-      const nis = orderCode.trim();
-      const customer = await prisma.customer.findUnique({ where: { nis } });
+      const input = orderCode.trim();
+      let customer = await prisma.customer.findUnique({ where: { nis: input } });
       if (!customer) {
-        res.json({ valid: false, error: `Santri dengan NIS ${nis} tidak ditemukan` });
+        customer = await prisma.customer.findFirst({ where: { noHape: input } });
+      }
+      if (!customer) {
+        res.json({ valid: false, error: `Santri dengan NIS / No HP ${input} tidak ditemukan` });
         return;
       }
       // Ambil order aktif (non-PICKED_UP) terbaru
@@ -194,7 +197,7 @@ export async function integrityCheck(req: Request, res: Response): Promise<void>
         orderBy: { createdAt: 'desc' },
       });
       if (!order) {
-        res.json({ valid: false, error: `Tidak ada order aktif untuk santri ${customer.nama} (NIS: ${nis})` });
+        res.json({ valid: false, error: `Tidak ada order aktif untuk santri ${customer.nama} (NIS: ${customer.nis})` });
         return;
       }
     } else {

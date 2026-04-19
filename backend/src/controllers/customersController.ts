@@ -16,6 +16,7 @@ export async function searchCustomers(req: Request, res: Response): Promise<void
             OR: [
               { nama: { contains: q as string } },
               { nis: { contains: q as string } },
+              { noHape: { contains: q as string } },
             ],
           }
         : undefined,
@@ -51,7 +52,7 @@ export async function getCustomerByNis(req: Request, res: Response): Promise<voi
 
 export async function createCustomer(req: Request, res: Response): Promise<void> {
   try {
-    const { nis, nama, kamar, kelas, aktif } = req.body;
+    const { nis, nama, kamar, kelas, noHape, aktif } = req.body;
 
     if (!nis || !nis.trim()) {
       res.status(400).json({ error: 'NIS wajib diisi' });
@@ -80,8 +81,9 @@ export async function createCustomer(req: Request, res: Response): Promise<void>
     }
 
     const isAktif = aktif === false || aktif === 'false' ? false : true;
+    const noHapeTrimmed = noHape && noHape.trim() ? noHape.trim() : null;
     const customer = await prisma.customer.create({
-      data: { nis: nis.trim(), nama: nama.trim(), kamar: kamar.trim(), kelas: kelas.trim(), aktif: isAktif },
+      data: { nis: nis.trim(), nama: nama.trim(), kamar: kamar.trim(), kelas: kelas.trim(), noHape: noHapeTrimmed, aktif: isAktif },
     });
 
     res.status(201).json(customer);
@@ -114,8 +116,8 @@ export async function getCustomerFilters(_req: Request, res: Response): Promise<
 }
 
 export async function getCustomerTemplate(_req: Request, res: Response): Promise<void> {
-  const header = 'nis,nama,kamar,kelas,aktif\n';
-  const example = '2023001,Ahmad Fahri,A-12,X IPA 1,true\n';
+  const header = 'nis,nama,kamar,kelas,noHape,aktif\n';
+  const example = '2023001,Ahmad Fahri,A-12,X IPA 1,08123456789,true\n';
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="template_data_santri.csv"');
   res.send(header + example);
@@ -124,8 +126,8 @@ export async function getCustomerTemplate(_req: Request, res: Response): Promise
 export async function getCustomerTemplateXlsx(_req: Request, res: Response): Promise<void> {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([
-    ['nis', 'nama', 'kamar', 'kelas', 'aktif'],
-    ['2023001', 'Ahmad Fahri', 'A-12', 'X IPA 1', 'true'],
+    ['nis', 'nama', 'kamar', 'kelas', 'noHape', 'aktif'],
+    ['2023001', 'Ahmad Fahri', 'A-12', 'X IPA 1', '08123456789', 'true'],
   ]);
   XLSX.utils.book_append_sheet(wb, ws, 'Data Santri');
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xls' });
@@ -162,7 +164,7 @@ export const uploadMiddleware = multer({
 export async function updateCustomer(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const { nis, nama, kamar, kelas, aktif } = req.body;
+    const { nis, nama, kamar, kelas, noHape, aktif } = req.body;
 
     if (!nis || !nis.trim()) { res.status(400).json({ error: 'NIS wajib diisi' }); return; }
     if (!nama || !nama.trim()) { res.status(400).json({ error: 'Nama santri wajib diisi' }); return; }
@@ -182,9 +184,10 @@ export async function updateCustomer(req: Request, res: Response): Promise<void>
     }
 
     const isAktif = aktif === false || aktif === 'false' ? false : true;
+    const noHapeTrimmed = noHape && noHape.trim() ? noHape.trim() : null;
     const customer = await prisma.customer.update({
       where: { id },
-      data: { nis: nis.trim(), nama: nama.trim(), kamar: kamar.trim(), kelas: kelas.trim(), aktif: isAktif },
+      data: { nis: nis.trim(), nama: nama.trim(), kamar: kamar.trim(), kelas: kelas.trim(), noHape: noHapeTrimmed, aktif: isAktif },
     });
 
     res.json(customer);
@@ -281,6 +284,8 @@ export async function bulkUploadCustomers(req: Request, res: Response): Promise<
       const nama = row['nama'] != null ? String(row['nama']).trim() : '';
       const kamar = row['kamar'] != null ? String(row['kamar']).trim() : '';
       const kelas = row['kelas'] != null ? String(row['kelas']).trim() : '';
+      const noHapeRaw = row['nohape'] != null ? String(row['nohape']).trim() : '';
+      const noHape = noHapeRaw || null;
       const aktifRaw = row['aktif'] != null ? String(row['aktif']).trim().toLowerCase() : 'true';
       const aktif = aktifRaw !== 'false' && aktifRaw !== '0' && aktifRaw !== 'tidak' && aktifRaw !== 'no';
 
@@ -295,11 +300,11 @@ export async function bulkUploadCustomers(req: Request, res: Response): Promise<
         // Update existing customer data
         await prisma.customer.update({
           where: { nis },
-          data: { nama, kamar, kelas, aktif },
+          data: { nama, kamar, kelas, noHape, aktif },
         });
         updated++;
       } else {
-        await prisma.customer.create({ data: { nis, nama, kamar, kelas, aktif } });
+        await prisma.customer.create({ data: { nis, nama, kamar, kelas, noHape, aktif } });
         inserted++;
       }
     }

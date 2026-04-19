@@ -21,7 +21,7 @@ const STAGE_CATEGORY: Record<string, string> = {
 interface OrderInfo {
   id: string;
   orderCode: string;
-  customer: { nis: string; nama: string; kamar: string; kelas: string };
+  customer: { nis: string; nama: string; kamar: string; kelas: string; noHape?: string | null };
   status: string;
   nextStage: string | null;
   estimatedCompletion: string;
@@ -370,6 +370,10 @@ export default function ScannerPage() {
                   <span className="font-medium text-gray-800">{orderInfo.customer?.nis}</span>
                 </div>
                 <div className="flex justify-between mobile-landscape:contents">
+                  <span className="text-gray-500">No HP</span>
+                  <span className="font-medium text-gray-800">{orderInfo.customer?.noHape || '-'}</span>
+                </div>
+                <div className="flex justify-between mobile-landscape:contents">
                   <span className="text-gray-500">Kamar</span>
                   <span className="font-medium text-gray-800">{orderInfo.customer?.kamar}</span>
                 </div>
@@ -476,12 +480,12 @@ export default function ScannerPage() {
                   value={manualCode}
                   onChange={(e) => setManualCode(e.target.value)}
                   className="input-field flex-1"
-                  placeholder="Kode order (LAU-...) atau NIS"
+                  placeholder="Kode order/NIS/No HP..."
                 />
                 <button type="submit" className="btn-primary whitespace-nowrap">Cari</button>
               </form>
               <p className="text-xs text-gray-400 mt-2">
-                Masukkan kode order atau NIS santri jika kamera tidak tersedia
+                Masukkan kode order / NIS / No HP santri jika kamera tidak tersedia
               </p>
             </div>
           )}

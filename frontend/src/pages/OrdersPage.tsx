@@ -26,7 +26,7 @@ const STATUS_COLOR: Record<string, string> = {
 interface Order {
   id: string;
   orderCode: string;
-  customer: { id: string; nis: string; nama: string; kamar: string; kelas: string };
+  customer: { id: string; nis: string; nama: string; kamar: string; kelas: string; noHape?: string | null };
   status: string;
   createdAt: string;
   qrCode: string;
@@ -202,6 +202,7 @@ export default function OrdersPage() {
         <div class="order-code">${order.orderCode}</div>
         <div class="row"><span class="label">Nama Santri</span><span class="value">${order.customer?.nama}</span></div>
         <div class="row"><span class="label">NIS</span><span class="value">${order.customer?.nis}</span></div>
+        <div class="row"><span class="label">No HP</span><span class="value">${order.customer?.noHape || '-'}</span></div>
         <div class="row"><span class="label">Kamar</span><span class="value">${order.customer?.kamar}</span></div>
         <div class="row"><span class="label">Kelas</span><span class="value">${order.customer?.kelas}</span></div>
         <div class="row"><span class="label">Tgl. Masuk</span><span class="value">${tglMasuk}</span></div>
@@ -333,11 +334,12 @@ export default function OrdersPage() {
             )}
             {orders.map((order) => (
               <div key={order.id} className="card py-3 px-4 flex items-center gap-3">
-                {/* Kiri: kode + NIS + nama */}
+                {/* Kiri: kode + NIS + nama + no HP */}
                 <div className="flex-1 min-w-0">
                   <p className="font-mono font-bold text-indigo-700 text-sm leading-tight">{order.orderCode}</p>
                   <p className="font-mono text-xs text-gray-400 leading-tight">{order.customer?.nis}</p>
                   <p className="text-gray-800 text-sm truncate">{order.customer?.nama}</p>
+                  <p className="font-mono text-xs text-gray-400 leading-tight">{order.customer?.noHape || '-'}</p>
                 </div>
                 {/* Tengah: status */}
                 <div className="flex-shrink-0">
@@ -393,6 +395,7 @@ export default function OrdersPage() {
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Kode Order</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">NIS</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Nama Santri</th>
+                  <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">No HP</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Kamar / Kelas</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600">Status</th>
                   <th className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-semibold text-gray-600 hidden md:table-cell">Tgl. Masuk</th>
@@ -412,6 +415,7 @@ export default function OrdersPage() {
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-mono font-bold text-indigo-700">{order.orderCode}</td>
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs font-mono text-gray-500">{order.customer?.nis}</td>
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs text-gray-800">{order.customer?.nama}</td>
+                    <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs text-gray-800">{order.customer?.noHape || '-'}</td>
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5 mobile-landscape:text-xs text-gray-600">{order.customer?.kamar} / {order.customer?.kelas}</td>
                     <td className="px-4 py-3 mobile-landscape:px-2 mobile-landscape:py-1.5">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[order.status] || 'bg-gray-100 text-gray-600'}`}>

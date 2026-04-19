@@ -9,6 +9,7 @@ interface Customer {
   id: string;
   nis: string;
   nama: string;
+  noHape?: string | null;
   kamar: string;
   kelas: string;
   aktif: boolean;
@@ -27,6 +28,7 @@ interface OrderResult {
 interface NewCustomerModal {
   nis: string;
   nama: string;
+  noHape?: string | null;
   kamar: string;
   kelas: string;
 }
@@ -49,7 +51,7 @@ export default function IntakePage() {
 
   // New customer modal
   const [showNewCustomer, setShowNewCustomer] = useState(false);
-  const [newCustomer, setNewCustomer] = useState<NewCustomerModal>({ nis: '', nama: '', kamar: '', kelas: '' });
+  const [newCustomer, setNewCustomer] = useState<NewCustomerModal>({ nis: '', nama: '', noHape: '', kamar: '', kelas: '' });
   const [savingCustomer, setSavingCustomer] = useState(false);
 
   // Print copies setting
@@ -257,7 +259,7 @@ export default function IntakePage() {
         // Tidak ditemukan — buka modal santri baru dengan data pre-filled
         setScannerState('error');
         setScannerMsg('Santri belum terdaftar. Daftarkan sebagai santri baru?');
-        setNewCustomer({ nis: parsedNis, nama: parsedName, kamar: '', kelas: '' });
+        setNewCustomer({ nis: parsedNis, nama: parsedName, noHape: '', kamar: '', kelas: '' });
       }
     } catch {
       setScannerState('error');
@@ -328,12 +330,13 @@ export default function IntakePage() {
       const res = await apiClient.post('/customer', {
         nis: newCustomer.nis.trim(),
         nama: newCustomer.nama.trim(),
+        noHape: newCustomer.noHape?.trim() || undefined,
         kamar: newCustomer.kamar.trim(),
         kelas: newCustomer.kelas.trim(),
       });
       selectCustomer(res.data);
       setShowNewCustomer(false);
-      setNewCustomer({ nis: '', nama: '', kamar: '', kelas: '' });
+      setNewCustomer({ nis: '', nama: '', noHape: '', kamar: '', kelas: '' });
     } catch (err: any) {
       alert(err.response?.data?.error || 'Gagal mendaftarkan santri');
     } finally {
@@ -389,6 +392,7 @@ export default function IntakePage() {
         <div class="order-code">${orderResult.orderCode}</div>
         <div class="row"><span class="label">Nama Santri</span><span class="value">${orderResult.customer.nama}</span></div>
         <div class="row"><span class="label">NIS</span><span class="value">${orderResult.customer.nis}</span></div>
+        <div class="row"><span class="label">No HP</span><span class="value">${orderResult.customer.noHape || '-'}</span></div>
         <div class="row"><span class="label">Kamar</span><span class="value">${orderResult.customer.kamar}</span></div>
         <div class="row"><span class="label">Kelas</span><span class="value">${orderResult.customer.kelas}</span></div>
         <div class="row"><span class="label">Tgl. Masuk</span><span class="value">${tglMasuk}</span></div>
@@ -458,7 +462,7 @@ export default function IntakePage() {
               var s = document.createElement('style');
               if (isTherm) {
                 var h = document.body.scrollHeight;
-                var perPage = Math.ceil(h / ${printCopies});
+                var perPage = Math.ceil(h / ${printCopies}) + 8;
                 s.textContent = '@page{size:' + pw + 'mm ' + perPage + 'px;margin:0;}';
               } else {
                 s.textContent = '@page{size:' + (namedSize[pw] || pw) + ';margin:10mm 15mm;}';
@@ -528,6 +532,10 @@ export default function IntakePage() {
                   <span className="text-xs font-mono text-gray-800">{orderResult.customer.nis}</span>
                 </div>
                 <div className="flex justify-between items-center px-3 py-2">
+                  <span className="text-xs text-gray-500 flex-shrink-0 mr-2">No HP</span>
+                  <span className="text-xs font-mono text-gray-800">{orderResult.customer.noHape}</span>
+                </div>
+                <div className="flex justify-between items-center px-3 py-2">
                   <span className="text-xs text-gray-500 flex-shrink-0 mr-2">Kamar · Kelas</span>
                   <span className="text-xs text-gray-800">{orderResult.customer.kamar} · {orderResult.customer.kelas}</span>
                 </div>
@@ -564,7 +572,7 @@ export default function IntakePage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nama Santri <span className="text-red-500">*</span>
+                    Pilih Santri <span className="text-red-500">*</span>
                   </label>
                   <div ref={dropdownRef} className="relative">
                     <div className="flex gap-2">
@@ -572,7 +580,7 @@ export default function IntakePage() {
                         <input
                           type="text"
                           className="input-field pr-10"
-                          placeholder="Ketik nama atau NIS..."
+                          placeholder="Nama/NIS/No HP"
                           value={customerQuery}
                           onChange={(e) => { setCustomerQuery(e.target.value); setSelectedCustomer(null); }}
                         />
@@ -584,11 +592,11 @@ export default function IntakePage() {
                           </div>
                         )}
                       </div>
-                      <button type="button" onClick={openCardScanner} title="Scan QR" className="btn-secondary text-sm flex items-center gap-1">
+                      <button type="button" onClick={openCardScanner} title="Scan QR" className="hidden sm:inline btn-secondary text-sm flex items-center gap-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                         </svg>
-                        <span className="hidden sm:inline">Scan QR</span>
+                        <span className="hidden md:inline">Scan QR</span>
                       </button>
                       <button type="button" onClick={() => setShowNewCustomer(true)} title="Tambah santri baru" className="btn-secondary text-sm flex items-center gap-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -688,6 +696,7 @@ export default function IntakePage() {
                     <p><span className="font-medium">Kode Order:</span> <span className="font-mono font-bold text-lg">{orderResult.orderCode}</span></p>
                     <p><span className="font-medium">Santri:</span> {orderResult.customer.nama}</p>
                     <p><span className="font-medium">NIS:</span> {orderResult.customer.nis}</p>
+                    <p><span className="font-medium">No HP:</span> {orderResult.customer.noHape}</p>
                     <p><span className="font-medium">Kamar:</span> {orderResult.customer.kamar} &nbsp;|&nbsp; <span className="font-medium">Kelas:</span> {orderResult.customer.kelas}</p>
                     <p><span className="font-medium">Est. Selesai:</span> {new Date(orderResult.estimatedCompletion).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                   </div>
@@ -722,7 +731,7 @@ export default function IntakePage() {
             {/* Customer Search */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Nama Santri <span className="text-red-500">*</span>
+                Pilih Santri <span className="text-red-500">*</span>
               </label>
 
               <div ref={dropdownRefDesktop} className="relative">
@@ -731,7 +740,7 @@ export default function IntakePage() {
                     <input
                       type="text"
                       className="input-field pr-10"
-                      placeholder="Ketik nama atau NIS..."
+                      placeholder="Ketik nama/NIS/No HP..."
                       value={customerQuery}
                       onChange={(e) => {
                         setCustomerQuery(e.target.value);
@@ -1045,6 +1054,18 @@ export default function IntakePage() {
                   onChange={(e) => setNewCustomer({ ...newCustomer, nama: e.target.value })}
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  No HP <span className="text-gray-400 font-normal">(opsional)</span>
+                </label>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Contoh: 08123456789"
+                  value={newCustomer.noHape ?? ''}
+                  onChange={(e) => setNewCustomer({ ...newCustomer, noHape: e.target.value })}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1082,7 +1103,7 @@ export default function IntakePage() {
                 {savingCustomer ? 'Menyimpan...' : 'Simpan'}
               </button>
               <button
-                onClick={() => { setShowNewCustomer(false); setNewCustomer({ nis: '', nama: '', kamar: '', kelas: '' }); }}
+                onClick={() => { setShowNewCustomer(false); setNewCustomer({ nis: '', nama: '', noHape: '', kamar: '', kelas: '' }); }}
                 className="btn-secondary flex-1"
               >
                 Batal
