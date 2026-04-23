@@ -102,7 +102,13 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
 
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const trackUrl = `${frontendUrl}/track?order=${orderCode}`;
-    const qrCode = await QRCode.toDataURL(trackUrl, { width: 300 });
+    const qrCode = await (QRCode as any).toDataURL(trackUrl, { 
+      width: 500,
+      margin: 2,
+      errorCorrectionLevel: 'H',
+      type: 'image/png',
+      quality: 0.95
+    });
 
     const order = await prisma.order.create({
       data: {

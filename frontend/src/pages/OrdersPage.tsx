@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import apiClient from '../api/client';
 import Navbar from '../components/Navbar';
 import { useAppConfigStore } from '../stores/appConfigStore';
+import { printHtmlDocument } from '../utils/printHtml';
 
 const STATUS_LABEL: Record<string, string> = {
   INTAKE: 'Diterima',
@@ -154,15 +155,7 @@ export default function OrdersPage() {
       day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
     const trackUrl = `${window.location.origin}/track`;
-    const existing = document.getElementById('__print_frame__');
-    if (existing) existing.remove();
-    const iframe = document.createElement('iframe');
-    iframe.id = '__print_frame__';
-    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0;visibility:hidden;';
-    document.body.appendChild(iframe);
-    const doc = iframe.contentDocument!;
-    doc.open();
-    doc.write(`
+    const htmlDoc = `
       <!DOCTYPE html>
       <html lang="id">
       <head>
@@ -185,9 +178,9 @@ export default function OrdersPage() {
           .label { color: #444; white-space: nowrap; }
           .value { font-weight: bold; text-align: right; word-break: break-all; }
           .divider { border-top: 1px dashed #000; margin: 5px 0; }
-          .qr { text-align: center; margin: 6px 0; }
-          .qr img { width: 55%; max-width: 110px; height: auto; }
-          .qr-label { font-size: 0.85em; margin-bottom: 3px; }
+          .qr { text-align: center; margin: 8px 0; }
+          .qr img { width: 70%; max-width: 200px; height: auto; image-rendering: pixelated; }
+          .qr-label { font-size: 0.85em; margin-bottom: 5px; font-weight: bold; }
           .track-url { text-align: center; font-size: 0.75em; word-break: break-all; margin-top: 3px; color: #333; }
           .footer { text-align: center; font-size: 0.8em; border-top: 2px dashed #000; padding-top: 5px; margin-top: 5px; }
           .reprint { text-align: center; font-size: 0.75em; color: #777; margin-bottom: 3px; }
@@ -215,38 +208,10 @@ export default function OrdersPage() {
           <p class="track-url">Masukkan kode order: <b>${order.orderCode}</b></p>
         </div>
         <div class="footer"><p>Terima kasih atas kepercayaan Anda!</p></div>
-        <script>
-          (function() {
-            var pw = '${paperWidth}';
-            var isTherm = /^\\d+$/.test(pw);
-            var namedSize = { A4:'A4', A5:'A5', F4:'210mm 330mm', LETTER:'letter' };
-            function applyAndPrint() {
-              var s = document.createElement('style');
-              if (isTherm) {
-                var h = document.body.scrollHeight;
-                s.textContent = '@page{size:' + pw + 'mm ' + h + 'px;margin:0;}';
-              } else {
-                s.textContent = '@page{size:' + (namedSize[pw] || pw) + ';margin:10mm 15mm;}';
-              }
-              document.head.appendChild(s);
-              window.print();
-              window.onafterprint = function(){ try { window.frameElement.remove(); } catch(e){} };
-            }
-            var imgs = Array.prototype.slice.call(document.querySelectorAll('img'));
-            var pending = imgs.filter(function(i){ return !i.complete; });
-            if (pending.length === 0) { applyAndPrint(); }
-            else {
-              var done = 0;
-              pending.forEach(function(i){
-                i.onload = i.onerror = function(){ if (++done === pending.length) applyAndPrint(); };
-              });
-            }
-          })();
-        <\/script>
       </body>
       </html>
-    `);
-    doc.close();
+    `;
+    printHtmlDocument(htmlDoc);
   }
 
   const pulling = pullDelta > 0;
