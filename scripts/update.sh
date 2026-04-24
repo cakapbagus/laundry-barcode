@@ -70,8 +70,11 @@ update_backend() {
   sudo -u "$APP_USER" -E npm run build
   sudo -u "$APP_USER" -E npm prune --omit=dev
 
-  sleep 3
-  pm2 restart laundry-backend
+  if pm2 describe laundry-backend >/dev/null 2>&1; then
+    pm2 restart laundry-backend
+  else
+    pm2 start npm --name laundry-backend -- run start
+  fi
   log "Backend di-update & restart"
 }
 

@@ -163,51 +163,47 @@ export default function OrdersPage() {
         <title>Nota Laundry - ${order.orderCode}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
+          @page { margin: 0; size: ${/^\d+$/.test(paperWidth) ? `${paperWidth}mm` : 'auto'} auto; }
           html, body { height: auto; }
           body {
             font-family: 'Courier New', monospace;
             font-size: 11px; color: #000;
-            padding: 3mm 4mm;
+            font-weight: bold;
+            padding: 3mm 5mm 1mm 5mm;
             ${/^\d+$/.test(paperWidth) ? `width:${paperWidth}mm;` : 'width:100%;'}
           }
-          .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 5px; margin-bottom: 5px; }
-          .header h1 { font-size: 1.3em; font-weight: bold; letter-spacing: 1px; }
-          .header p { font-size: 0.9em; }
-          .order-code { text-align: center; font-size: 1.6em; font-weight: bold; letter-spacing: 2px; margin: 5px 0; padding: 4px; border: 2px solid #000; }
-          .row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 1em; gap: 4px; }
-          .label { color: #444; white-space: nowrap; }
-          .value { font-weight: bold; text-align: right; word-break: break-all; }
-          .divider { border-top: 1px dashed #000; margin: 5px 0; }
+          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 3px; margin-bottom: 5px; }
+          .header h1 { font-size: 1.3em; letter-spacing: 1px; }
+          .header p { font-size: 1.1em; }
+          .order-code { text-align: center; font-size: 1.1em; letter-spacing: 1px; margin: 5px 0; padding: 4px; border: 2px solid #000; }
+          .row { text-align: center; margin: 2px 0; }
+          .value { word-break: break-all; }
           .qr { text-align: center; margin: 8px 0; }
-          .qr img { width: 70%; max-width: 200px; height: auto; image-rendering: pixelated; }
-          .qr-label { font-size: 0.85em; margin-bottom: 5px; font-weight: bold; }
-          .track-url { text-align: center; font-size: 0.75em; word-break: break-all; margin-top: 3px; color: #333; }
-          .footer { text-align: center; font-size: 0.8em; border-top: 2px dashed #000; padding-top: 5px; margin-top: 5px; }
-          .reprint { text-align: center; font-size: 0.75em; color: #777; margin-bottom: 3px; }
+          .qr img { width: 100%; height: auto; image-rendering: pixelated; }
+          .mini-label { font-size: 0.8em; }
+          .track-url { font-size: 0.9em; word-break: break-all; margin-top: 3px; }
+          .footer { text-align: center; border-top: 2px solid #000; border-bottom: 2px dashed #000; padding: 5px 0; margin-top: 5px; }
+          .reprint { text-align: center; margin-bottom: 3px; }
         </style>
       </head>
       <body>
         <div class="header">
           <h1>${appTitle.toUpperCase()}</h1>
           <p>${appSlogan}</p>
+          <div class="reprint">*** CETAK ULANG ***</div>
         </div>
-        <div class="reprint">*** CETAK ULANG ***</div>
+        <div class="row"><span class="value">${order.customer?.nama} (${order.customer?.kelas})</span></div>
+        ${order.customer?.noHape ? `<div class="row"><span class="value">${order.customer.noHape}</span></div>` : ''}
+        <div class="row"><span class="value">${order.customer?.nis} / ${order.customer?.kamar}</span></div>
         <div class="order-code">${order.orderCode}</div>
-        <div class="row"><span class="label">Nama Santri</span><span class="value">${order.customer?.nama}</span></div>
-        <div class="row"><span class="label">NIS</span><span class="value">${order.customer?.nis}</span></div>
-        <div class="row"><span class="label">No HP</span><span class="value">${order.customer?.noHape || '-'}</span></div>
-        <div class="row"><span class="label">Kamar</span><span class="value">${order.customer?.kamar}</span></div>
-        <div class="row"><span class="label">Kelas</span><span class="value">${order.customer?.kelas}</span></div>
-        <div class="row"><span class="label">Tgl. Masuk</span><span class="value">${tglMasuk}</span></div>
-        <div class="divider"></div>
         <div class="qr">
-          <p class="qr-label">Scan QR untuk lacak cucian:</p>
+          <p class="mini-label">Scan QR untuk melacak:</p>
           <img src="${order.qrCode}" alt="QR Code" />
-          <p>atau</p>
-          <p class="track-url">Buka situs: ${trackUrl}</p>
-          <p class="track-url">Masukkan kode order: <b>${order.orderCode}</b></p>
+          <p class="mini-label">Atau kunjungi:</p>
+          <p class="track-url">${trackUrl}</p>
         </div>
-        <div class="footer"><p>Terima kasih atas kepercayaan Anda!</p></div>
+        <div class="row"><span class="value">${tglMasuk}</span></div>
+        <div class="footer"><p>Terima Kasih</p></div>
       </body>
       </html>
     `;

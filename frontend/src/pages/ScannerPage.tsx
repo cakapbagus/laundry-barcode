@@ -129,7 +129,7 @@ export default function ScannerPage() {
       if (code && code.data) {
         // Extract order code from URL or use directly
         let orderCode = code.data;
-        const urlMatch = code.data.match(/order=(LAU-\d{8}-[A-Z]{3})/);
+        const urlMatch = code.data.match(/order=(\d{20})/);
         if (urlMatch) orderCode = urlMatch[1];
 
         if (orderCode !== lastScannedRef.current) {

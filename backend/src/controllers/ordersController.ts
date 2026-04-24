@@ -81,19 +81,19 @@ export async function createOrder(req: Request, res: Response): Promise<void> {
       (req as any).__weeklyMeta = { needsReset, currentCount, weekStart };
     }
 
-    // Duplicate prevention: same customer within 30 min
-    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+    // Duplicate prevention: same customer within 15 min
+    const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
     const dupOrder = await prisma.order.findFirst({
-      where: { customerId, createdAt: { gte: thirtyMinAgo }, status: { not: 'PICKED_UP' } },
+      where: { customerId, createdAt: { gte: fifteenMinAgo }, status: { not: 'PICKED_UP' } },
     });
     if (dupOrder) {
       res.status(409).json({
-        error: `Order untuk ${customer.nama} (NIS: ${customer.nis}) sudah dibuat dalam 30 menit terakhir (${dupOrder.orderCode})`,
+        error: `Order untuk ${customer.nama} (NIS: ${customer.nis}) sudah dibuat dalam 15 menit terakhir (${dupOrder.orderCode})`,
       });
       return;
     }
 
-    const orderCode = await generateOrderCode(prisma);
+    const orderCode = await generateOrderCode(prisma, customer.nis);
 
     const completionDaysSetting = await prisma.setting.findUnique({ where: { key: 'COMPLETION_DAYS' } });
     const completionDays = parseInt(completionDaysSetting?.value || '3');
