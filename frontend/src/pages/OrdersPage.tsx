@@ -169,7 +169,7 @@ export default function OrdersPage() {
             font-family: 'Courier New', monospace;
             font-size: 11px; color: #000;
             font-weight: bold;
-            padding: 3mm 5mm 1mm 5mm;
+            padding: 1mm 5mm 1mm 5mm;
             ${/^\d+$/.test(paperWidth) ? `width:${paperWidth}mm;` : 'width:100%;'}
           }
           .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 3px; margin-bottom: 5px; }
@@ -182,7 +182,7 @@ export default function OrdersPage() {
           .qr img { width: 100%; height: auto; image-rendering: pixelated; }
           .mini-label { font-size: 0.8em; }
           .track-url { font-size: 0.9em; word-break: break-all; margin-top: 3px; }
-          .footer { text-align: center; border-top: 2px solid #000; border-bottom: 2px dashed #000; padding: 5px 0; margin-top: 5px; }
+          .footer { text-align: center; border-top: 2px dashed #000; margin-top: 5px; }
           .reprint { text-align: center; margin-bottom: 3px; }
         </style>
       </head>

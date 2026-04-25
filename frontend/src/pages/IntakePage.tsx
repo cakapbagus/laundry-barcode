@@ -441,7 +441,7 @@ export default function IntakePage() {
         <div class="footer"><p>Terima Kasih</p></div>
       </div>`;
 
-    const copies = Array.from({ length: printCopies }, () => notaHtml).join('<div style="margin-top: 3mm;"></div>');
+    const copies = Array.from({ length: printCopies }, () => notaHtml).join('<div style="margin-top: 1mm;"></div>');
 
     const htmlDoc = `
       <!DOCTYPE html>
@@ -457,7 +457,7 @@ export default function IntakePage() {
             font-family: 'Courier New', monospace;
             font-size: 11px; color: #000;
             font-weight: bold;
-            padding: 3mm 5mm 1mm 5mm;
+            padding: 1mm 5mm 1mm 5mm;
             ${/^\d+$/.test(paperWidth) ? `width:${paperWidth}mm;` : 'width:100%;'}
           }
           .copy { break-after: page; }
@@ -472,7 +472,7 @@ export default function IntakePage() {
           .qr img { width: 100%; height: auto; image-rendering: pixelated; }
           .mini-label { font-size: 0.8em; }
           .track-url { font-size: 0.9em; word-break: break-all; margin-top: 3px; }
-          .footer { text-align: center; border-top: 2px solid #000; border-bottom: 2px dashed #000; padding: 5px 0; margin-top: 5px; }
+          .footer { text-align: center; border-top: 2px dashed #000; margin-top: 5px; }
         </style>
       </head>
       <body>
@@ -743,7 +743,7 @@ export default function IntakePage() {
               <div className="flex-1">
                 <h3 className="font-semibold text-green-800">Order Berhasil Dibuat!</h3>
                 <div className="mt-3 flex gap-4 items-start">
-                  <div className="flex-1 space-y-1 text-sm text-green-700">
+                  <div className="flex-1 min-w-0 space-y-1 text-sm text-green-700">
                     <p><span className="font-medium">Kode Order:</span> <span className="font-mono font-bold text-lg">{orderResult.orderCode}</span></p>
                     <p><span className="font-medium">Santri:</span> {orderResult.customer.nama}</p>
                     <p><span className="font-medium">NIS:</span> {orderResult.customer.nis}</p>
@@ -761,7 +761,7 @@ export default function IntakePage() {
                       </p>
                     )}
                   </div>
-                  <img src={orderResult.qrCode} alt="QR Code" className="w-36 h-36 flex-shrink-0 rounded border border-green-200" />
+                  <img src={orderResult.qrCode} alt="QR Code" className="w-36 h-36 flex-shrink-0 rounded border border-green-200 object-contain" />
                 </div>
                 <div className="mt-4 flex gap-2">
                   <button onClick={handlePrint} className="btn-primary text-sm flex items-center gap-1">

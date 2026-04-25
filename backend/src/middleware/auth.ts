@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { PrismaClient } from '@prisma/client';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'laundry-secret-key-2024';
+const prisma = new PrismaClient();
 
 export interface AuthUser {
   id: string;
@@ -17,7 +19,7 @@ declare global {
   }
 }
 
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Token tidak ditemukan' });
@@ -27,7 +29,12 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
-    req.user = decoded;
+    const dbUser = await prisma.user.findUnique({ where: { id: decoded.id }, select: { id: true, name: true, role: true } });
+    if (!dbUser) {
+      res.status(401).json({ error: 'Akun tidak ditemukan, silakan login ulang' });
+      return;
+    }
+    req.user = dbUser;
     next();
   } catch {
     res.status(401).json({ error: 'Token tidak valid atau sudah expired' });
