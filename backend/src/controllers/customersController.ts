@@ -8,20 +8,26 @@ const prisma = new PrismaClient();
 
 export async function searchCustomers(req: Request, res: Response): Promise<void> {
   try {
-    const { q } = req.query;
+    const { q, kamar, kelas } = req.query;
+
+    const andConditions: object[] = [];
+
+    if (q) {
+      andConditions.push({
+        OR: [
+          { nama: { contains: q as string } },
+          { nis: { contains: q as string } },
+          { noHape: { contains: q as string } },
+        ],
+      });
+    }
+    if (kamar) andConditions.push({ kamar: { equals: kamar as string } });
+    if (kelas) andConditions.push({ kelas: { equals: kelas as string } });
 
     const customers = await prisma.customer.findMany({
-      where: q
-        ? {
-            OR: [
-              { nama: { contains: q as string } },
-              { nis: { contains: q as string } },
-              { noHape: { contains: q as string } },
-            ],
-          }
-        : undefined,
+      where: andConditions.length > 0 ? { AND: andConditions } : undefined,
       orderBy: { nama: 'asc' },
-      take: 20,
+      ...(q ? { take: 50 } : {}),
     });
 
     res.json(customers);
@@ -29,6 +35,7 @@ export async function searchCustomers(req: Request, res: Response): Promise<void
     res.status(500).json({ error: 'Terjadi kesalahan server' });
   }
 }
+
 
 export async function getCustomerByNis(req: Request, res: Response): Promise<void> {
   try {

@@ -28,6 +28,10 @@ function fmtRupiah(n: number) {
 export default function SantriPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
+  const [filterKamar, setFilterKamar] = useState('');
+  const [filterKelas, setFilterKelas] = useState('');
+  const [kamarOptions, setKamarOptions] = useState<string[]>([]);
+  const [kelasOptions, setKelasOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -57,10 +61,14 @@ export default function SantriPage() {
     errors: { row: number; nis: string; reason: string }[];
   } | null>(null);
 
-  const fetchCustomers = useCallback(async (q?: string) => {
+  const fetchCustomers = useCallback(async (q?: string, kamar?: string, kelas?: string) => {
     setLoading(true);
     try {
-      const res = await apiClient.get('/customer', { params: q ? { q } : {} });
+      const params: Record<string, string> = {};
+      if (q) params.q = q;
+      if (kamar) params.kamar = kamar;
+      if (kelas) params.kelas = kelas;
+      const res = await apiClient.get('/customer', { params });
       setCustomers(res.data);
     } catch {
       // silent
@@ -69,14 +77,21 @@ export default function SantriPage() {
     }
   }, []);
 
+  useEffect(() => {
+    apiClient.get('/customer/filters').then((res) => {
+      setKamarOptions(res.data.kamar ?? []);
+      setKelasOptions(res.data.kelas ?? []);
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
   useEffect(() => {
-    const t = setTimeout(() => fetchCustomers(search || undefined), 300);
+    const t = setTimeout(() => fetchCustomers(search || undefined, filterKamar || undefined, filterKelas || undefined), 300);
     return () => clearTimeout(t);
-  }, [search, fetchCustomers]);
+  }, [search, filterKamar, filterKelas, fetchCustomers]);
 
-  useEffect(() => { setPage(1); }, [search, pageSize]);
+  useEffect(() => { setPage(1); }, [search, filterKamar, filterKelas, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(customers.length / pageSize));
   const pagedCustomers = customers.slice((page - 1) * pageSize, page * pageSize);
@@ -222,8 +237,8 @@ export default function SantriPage() {
           </button>
         </div>
 
-        {/* Search */}
-        <div className="mb-3">
+        {/* Search & Filter */}
+        <div className="mb-3 flex flex-wrap gap-2">
           <input
             type="text"
             className="input-field w-full sm:max-w-xs text-sm py-2"
@@ -231,6 +246,30 @@ export default function SantriPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <select
+            value={filterKamar}
+            onChange={(e) => setFilterKamar(e.target.value)}
+            className="border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 text-gray-700"
+          >
+            <option value="">Semua Kamar</option>
+            {kamarOptions.map((k) => <option key={k} value={k}>{k}</option>)}
+          </select>
+          <select
+            value={filterKelas}
+            onChange={(e) => setFilterKelas(e.target.value)}
+            className="border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 text-gray-700"
+          >
+            <option value="">Semua Kelas</option>
+            {kelasOptions.map((k) => <option key={k} value={k}>{k}</option>)}
+          </select>
+          {(filterKamar || filterKelas) && (
+            <button
+              onClick={() => { setFilterKamar(''); setFilterKelas(''); }}
+              className="px-3 py-2 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg bg-white hover:bg-gray-50 transition-colors"
+            >
+              Reset Filter
+            </button>
+          )}
         </div>
 
         {/* Page size + info */}
