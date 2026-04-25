@@ -29,6 +29,8 @@ export default function SantriPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Add / Edit modal
   const [modalMode, setModalMode] = useState<'add' | 'edit' | null>(null);
@@ -73,6 +75,11 @@ export default function SantriPage() {
     const t = setTimeout(() => fetchCustomers(search || undefined), 300);
     return () => clearTimeout(t);
   }, [search, fetchCustomers]);
+
+  useEffect(() => { setPage(1); }, [search, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(customers.length / pageSize));
+  const pagedCustomers = customers.slice((page - 1) * pageSize, page * pageSize);
 
   function openAdd() {
     setForm(emptyForm);
@@ -226,15 +233,31 @@ export default function SantriPage() {
           />
         </div>
 
+        {/* Page size + info */}
+        {!loading && customers.length > 0 && (
+          <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
+            <span>{customers.length} santri · halaman {page} dari {totalPages}</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            >
+              {[5, 10, 20, 50, 100].map((n) => (
+                <option key={n} value={n}>{n} per halaman</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Mobile card list */}
-        <div className="sm:hidden mb-4 space-y-2">
+        <div className="sm:hidden mb-2 space-y-2">
           {loading ? (
             <div className="py-10 text-center text-sm text-gray-400">Memuat data...</div>
           ) : customers.length === 0 ? (
             <div className="py-10 text-center text-sm text-gray-400">
               {search ? 'Tidak ada santri yang cocok.' : 'Belum ada santri terdaftar.'}
             </div>
-          ) : customers.map((c) => (
+          ) : pagedCustomers.map((c) => (
             <div
               key={c.id}
               className={`bg-white rounded-xl border border-gray-100 shadow-sm px-3 py-2.5 flex items-center gap-3 ${c.tipe === 'BERLANGGANAN' && !c.aktif ? 'opacity-60' : ''}`}
@@ -299,8 +322,19 @@ export default function SantriPage() {
           ))}
         </div>
 
+        {/* Mobile pagination */}
+        {!loading && totalPages > 1 && (
+          <div className="sm:hidden flex items-center justify-center gap-1 mb-4">
+            <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1 text-xs rounded-lg border border-gray-200 disabled:opacity-40">«</button>
+            <button onClick={() => setPage((p) => p - 1)} disabled={page === 1} className="px-2 py-1 text-xs rounded-lg border border-gray-200 disabled:opacity-40">‹</button>
+            <span className="px-3 py-1 text-xs">{page} / {totalPages}</span>
+            <button onClick={() => setPage((p) => p + 1)} disabled={page === totalPages} className="px-2 py-1 text-xs rounded-lg border border-gray-200 disabled:opacity-40">›</button>
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1 text-xs rounded-lg border border-gray-200 disabled:opacity-40">»</button>
+          </div>
+        )}
+
         {/* Desktop table */}
-        <div className="hidden sm:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+        <div className="hidden sm:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-3">
           {loading ? (
             <div className="py-12 text-center text-sm text-gray-400">Memuat data...</div>
           ) : customers.length === 0 ? (
@@ -322,7 +356,7 @@ export default function SantriPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {customers.map((c) => (
+                  {pagedCustomers.map((c) => (
                     <tr key={c.id} className={`hover:bg-gray-50 transition-colors ${c.tipe === 'BERLANGGANAN' && !c.aktif ? 'opacity-60' : ''}`}>
                       <td className="px-4 py-3 font-mono text-xs text-gray-600">{c.nis}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{c.nama}</td>
@@ -396,14 +430,44 @@ export default function SantriPage() {
           )}
         </div>
 
+        {/* Desktop pagination */}
+        {!loading && totalPages > 1 && (
+          <div className="hidden sm:flex items-center justify-center gap-1 mb-4">
+            <button onClick={() => setPage(1)} disabled={page === 1} className="px-2 py-1 text-xs rounded-lg border border-gray-200 disabled:opacity-40">«</button>
+            <button onClick={() => setPage((p) => p - 1)} disabled={page === 1} className="px-2 py-1 text-xs rounded-lg border border-gray-200 disabled:opacity-40">‹</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((n) => n === 1 || n === totalPages || Math.abs(n - page) <= 1)
+              .reduce<(number | '...')[]>((acc, n, i, arr) => {
+                if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push('...');
+                acc.push(n);
+                return acc;
+              }, [])
+              .map((n, i) =>
+                n === '...' ? (
+                  <span key={`e${i}`} className="px-1 text-xs text-gray-400">…</span>
+                ) : (
+                  <button
+                    key={n}
+                    onClick={() => setPage(n as number)}
+                    className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${page === n ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-200 hover:border-gray-300'}`}
+                  >
+                    {n}
+                  </button>
+                )
+              )}
+            <button onClick={() => setPage((p) => p + 1)} disabled={page === totalPages} className="px-2 py-1 text-xs rounded-lg border border-gray-200 disabled:opacity-40">›</button>
+            <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="px-2 py-1 text-xs rounded-lg border border-gray-200 disabled:opacity-40">»</button>
+          </div>
+        )}
+
         {/* Bulk Upload */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">Import Data Santri (Bulk Upload)</h2>
           <p className="text-xs text-gray-500 mb-3">
             Upload file CSV atau Excel (XLS/XLSX). Kolom wajib:{' '}
             <span className="font-mono">nis, nama, kamar, kelas</span>. Kolom opsional:{' '}
-            <span className="font-mono">noHape</span>, <span className="font-mono">tipe</span> (BERLANGGANAN/DEPOSIT),{' '}
-            <span className="font-mono">saldo</span>, <span className="font-mono">aktif</span> (true/false).{' '}
+            <span className="font-mono">noHape</span>, <span className="font-mono">tipe</span> (BERLANGGANAN/DEPOSIT, default: BERLANGGANAN),{' '}
+            <span className="font-mono">saldo</span> (default: 0), <span className="font-mono">aktif</span> (true/false, default: true).{' '}
             NIS yang sudah terdaftar akan <strong>diperbarui</strong>.
           </p>
           <div className="flex flex-wrap gap-2 mb-3">
