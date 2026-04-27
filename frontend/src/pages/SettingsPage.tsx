@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import apiClient from '../api/client';
 import Navbar from '../components/Navbar';
 import { useAppConfigStore } from '../stores/appConfigStore';
+import { connectPrinter, disconnectPrinter, getConnectedDeviceName } from '../utils/printBluetooth';
 
 interface Machine {
   id: string;
@@ -33,6 +34,8 @@ export default function SettingsPage() {
   const loadConfig = useAppConfigStore((s) => s.loadConfig);
   const [savingSettings, setSavingSettings] = useState(false);
   const [savedSettings, setSavedSettings] = useState(false);
+  const [btDeviceName, setBtDeviceName] = useState<string | null>(() => getConnectedDeviceName());
+  const [btConnecting, setBtConnecting] = useState(false);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [newMachine, setNewMachine] = useState({ code: '', name: '', category: '' });
   const [addingMachine, setAddingMachine] = useState(false);
@@ -240,7 +243,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="border-b border-gray-200 my-2 mobile-landscape:my-1.5 pt-2">
-                <label className="text-xs font-semibold text-gray-900 block mb-1">Cetak</label>
+                <label className="text-xs font-semibold text-gray-900 block mb-1">Cetak Thermal</label>
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-xs font-medium text-gray-700 whitespace-nowrap w-28 mobile-landscape:w-24 flex-shrink-0">
@@ -266,20 +269,52 @@ export default function SettingsPage() {
                   value={settings.PAPER_WIDTH}
                   onChange={(e) => setSettings(prev => ({ ...prev, PAPER_WIDTH: e.target.value }))}
                 >
-                  <optgroup label="Thermal / Struk">
-                    <option value="58">58mm — Thermal 2¼″</option>
-                    <option value="72">72mm — Thermal 2¾″</option>
-                    <option value="76">76mm — Thermal 3″ kecil</option>
-                    <option value="80">80mm — Thermal 3⅛″ (standar)</option>
-                    <option value="104">104mm — Thermal 4″</option>
-                  </optgroup>
-                  <optgroup label="Kertas Standar">
-                    <option value="A5">A5 — 148 × 210mm</option>
-                    <option value="A4">A4 — 210 × 297mm</option>
-                    <option value="F4">F4/Folio — 210 × 330mm</option>
-                    <option value="LETTER">Letter — 216 × 279mm</option>
-                  </optgroup>
+                  <option value="58">58mm — Thermal 2¼″</option>
+                  <option value="72">72mm — Thermal 2¾″</option>
+                  <option value="76">76mm — Thermal 3″ kecil</option>
+                  <option value="80">80mm — Thermal 3⅛″ (standar)</option>
+                  <option value="104">104mm — Thermal 4″</option>
                 </select>
+              </div>
+
+              {/* Bluetooth printer */}
+              <div className="flex items-center gap-2 pt-1">
+                <label className="text-xs font-medium text-gray-700 whitespace-nowrap w-28 mobile-landscape:w-24 flex-shrink-0">
+                  Printer BT
+                </label>
+                <div className="flex-1 flex items-center gap-2">
+                  {btDeviceName ? (
+                    <>
+                      <span className="text-xs text-green-700 font-medium truncate flex-1">
+                        ● {btDeviceName}
+                      </span>
+                      <button
+                        onClick={() => { disconnectPrinter(); setBtDeviceName(null); }}
+                        className="text-xs text-red-600 hover:text-red-700 whitespace-nowrap"
+                      >
+                        Putus
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      disabled={btConnecting}
+                      onClick={async () => {
+                        setBtConnecting(true);
+                        try {
+                          const name = await connectPrinter();
+                          setBtDeviceName(name);
+                        } catch (err: any) {
+                          alert(err.message ?? 'Gagal menghubungkan printer');
+                        } finally {
+                          setBtConnecting(false);
+                        }
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                      {btConnecting ? 'Menghubungkan...' : 'Pilih Printer'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <button

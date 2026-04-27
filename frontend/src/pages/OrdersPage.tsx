@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import apiClient from '../api/client';
 import Navbar from '../components/Navbar';
 import { useAppConfigStore } from '../stores/appConfigStore';
-import { printHtmlDocument } from '../utils/printHtml';
+import { printViaBluetooth } from '../utils/printBluetooth';
 
 const STATUS_LABEL: Record<string, string> = {
   INTAKE: 'Diterima',
@@ -148,66 +148,30 @@ export default function OrdersPage() {
     setIsPulling(false);
   }
 
-  function handlePrint(order: Order) {
+  async function handlePrint(order: Order) {
     const now = new Date(order.createdAt);
     const tglMasuk = now.toLocaleString('id-ID', {
       weekday: 'short', year: 'numeric', month: 'short',
       day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
-    const trackUrl = `${window.location.origin}/track`;
-    const htmlDoc = `
-      <!DOCTYPE html>
-      <html lang="id">
-      <head>
-        <meta charset="UTF-8">
-        <title>Nota Laundry - ${order.orderCode}</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          @page { margin: 0; size: ${/^\d+$/.test(paperWidth) ? `${paperWidth}mm` : 'auto'} auto; }
-          html, body { height: auto; }
-          body {
-            font-family: 'Courier New', monospace;
-            font-size: 11px; color: #000;
-            font-weight: bold;
-            padding: 1mm 5mm 1mm 5mm;
-            ${/^\d+$/.test(paperWidth) ? `width:${paperWidth}mm;` : 'width:100%;'}
-          }
-          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 3px; margin-bottom: 5px; }
-          .header h1 { font-size: 1.3em; letter-spacing: 1px; }
-          .header p { font-size: 1.1em; }
-          .order-code { text-align: center; font-size: 1.1em; letter-spacing: 1px; margin: 5px 0; padding: 4px; border: 2px solid #000; }
-          .row { text-align: center; margin: 2px 0; }
-          .value { word-break: break-all; }
-          .qr { text-align: center; margin: 8px 0; }
-          .qr img { width: 100%; height: auto; image-rendering: pixelated; }
-          .mini-label { font-size: 0.8em; }
-          .track-url { font-size: 0.9em; word-break: break-all; margin-top: 3px; }
-          .footer { text-align: center; border-top: 2px dashed #000; margin-top: 5px; }
-          .reprint { text-align: center; margin-bottom: 3px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${appTitle.toUpperCase()}</h1>
-          <p>${appSlogan}</p>
-          <div class="reprint">*** CETAK ULANG ***</div>
-        </div>
-        <div class="row"><span class="value">${order.customer?.nama} (${order.customer?.kelas})</span></div>
-        ${order.customer?.noHape ? `<div class="row"><span class="value">${order.customer.noHape}</span></div>` : ''}
-        <div class="row"><span class="value">${order.customer?.nis} / ${order.customer?.kamar}</span></div>
-        <div class="order-code">${order.orderCode}</div>
-        <div class="qr">
-          <p class="mini-label">Scan QR untuk melacak:</p>
-          <img src="${order.qrCode}" alt="QR Code" />
-          <p class="mini-label">Atau kunjungi:</p>
-          <p class="track-url">${trackUrl}</p>
-        </div>
-        <div class="row"><span class="value">${tglMasuk}</span></div>
-        <div class="footer"><p>Terima Kasih</p></div>
-      </body>
-      </html>
-    `;
-    printHtmlDocument(htmlDoc);
+    try {
+      await printViaBluetooth({
+        appTitle,
+        appSlogan,
+        customerNama: order.customer?.nama ?? '',
+        customerKelas: order.customer?.kelas ?? '',
+        customerNoHape: order.customer?.noHape,
+        customerNis: order.customer?.nis ?? '',
+        customerKamar: order.customer?.kamar ?? '',
+        orderCode: order.orderCode,
+        trackUrl: `${window.location.origin}/track?order=${order.orderCode}`,
+        tglMasuk,
+        isReprint: true,
+        paperWidth: parseInt(paperWidth) || 80,
+      });
+    } catch (err: any) {
+      alert(err.message ?? 'Gagal mencetak');
+    }
   }
 
   const pulling = pullDelta > 0;

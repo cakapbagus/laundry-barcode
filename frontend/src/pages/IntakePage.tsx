@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useAppConfigStore } from '../stores/appConfigStore';
 import apiClient from '../api/client';
 import Navbar from '../components/Navbar';
-import { printHtmlDocument } from '../utils/printHtml';
+import { printViaBluetooth } from '../utils/printBluetooth';
 
 interface Customer {
   id: string;
@@ -412,75 +412,31 @@ export default function IntakePage() {
 
   // ─── Print ──────────────────────────────────────────────────────────────────
 
-  function handlePrint() {
+  async function handlePrint() {
     if (!orderResult) return;
     const now = new Date();
     const tglMasuk = now.toLocaleString('id-ID', {
       weekday: 'short', year: 'numeric', month: 'short',
       day: 'numeric', hour: '2-digit', minute: '2-digit',
     });
-    const trackUrl = `${window.location.origin}/track`;
-
-    const notaHtml = `
-      <div class="copy">
-        <div class="header">
-          <h1>${appTitle.toUpperCase()}</h1>
-          <p>${appSlogan}</p>
-        </div>
-        <div class="row"><span class="value">${orderResult.customer?.nama} (${orderResult.customer?.kelas})</span></div>
-        ${orderResult.customer?.noHape ? `<div class="row"><span class="value">${orderResult.customer.noHape}</span></div>` : ''}
-        <div class="row"><span class="value">${orderResult.customer?.nis} / ${orderResult.customer?.kamar}</span></div>
-        <div class="order-code">${orderResult.orderCode}</div>
-        <div class="qr">
-          <p class="qr-label">Scan QR untuk melacak:</p>
-          <img src="${orderResult.qrCode}" alt="QR Code" />
-          <p class="mini-label">Atau kunjungi:</p>
-          <p class="track-url">${trackUrl}</p>
-        </div>
-        <div class="row"><span class="value">${tglMasuk}</span></div>
-        <div class="footer"><p>Terima Kasih</p></div>
-      </div>`;
-
-    const copies = Array.from({ length: printCopies }, () => notaHtml).join('<div style="margin-top: 1mm;"></div>');
-
-    const htmlDoc = `
-      <!DOCTYPE html>
-      <html lang="id">
-      <head>
-        <meta charset="UTF-8">
-        <title>Nota Laundry - ${orderResult.orderCode}</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          @page { margin: 0; size: ${/^\d+$/.test(paperWidth) ? `${paperWidth}mm` : 'auto'} auto; }
-          html, body { height: auto; }
-          body {
-            font-family: 'Courier New', monospace;
-            font-size: 11px; color: #000;
-            font-weight: bold;
-            padding: 1mm 5mm 1mm 5mm;
-            ${/^\d+$/.test(paperWidth) ? `width:${paperWidth}mm;` : 'width:100%;'}
-          }
-          .copy { break-after: page; }
-          .copy:last-child { break-after: avoid; }
-          .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 3px; margin-bottom: 5px; }
-          .header h1 { font-size: 1.3em; letter-spacing: 1px; }
-          .header p { font-size: 1.1em; }
-          .order-code { text-align: center; font-size: 1.1em; letter-spacing: 1px; margin: 5px 0; padding: 4px; border: 2px solid #000; }
-          .row { text-align: center; margin: 2px 0; }
-          .value { word-break: break-all; }
-          .qr { text-align: center; margin: 8px 0; }
-          .qr img { width: 100%; height: auto; image-rendering: pixelated; }
-          .mini-label { font-size: 0.8em; }
-          .track-url { font-size: 0.9em; word-break: break-all; margin-top: 3px; }
-          .footer { text-align: center; border-top: 2px dashed #000; margin-top: 5px; }
-        </style>
-      </head>
-      <body>
-        ${copies}
-      </body>
-      </html>
-    `;
-    printHtmlDocument(htmlDoc);
+    try {
+      await printViaBluetooth({
+        appTitle,
+        appSlogan,
+        customerNama: orderResult.customer.nama,
+        customerKelas: orderResult.customer.kelas,
+        customerNoHape: orderResult.customer.noHape,
+        customerNis: orderResult.customer.nis,
+        customerKamar: orderResult.customer.kamar,
+        orderCode: orderResult.orderCode,
+        trackUrl: `${window.location.origin}/track?order=${orderResult.orderCode}`,
+        tglMasuk,
+        copies: printCopies,
+        paperWidth: parseInt(paperWidth) || 80,
+      });
+    } catch (err: any) {
+      alert(err.message ?? 'Gagal mencetak');
+    }
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
